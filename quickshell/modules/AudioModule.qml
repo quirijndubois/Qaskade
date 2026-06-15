@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell.Io
 import Quickshell.Services.Pipewire
+import "../"
 
 BarText {
     id: root

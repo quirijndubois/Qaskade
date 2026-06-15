@@ -11,7 +11,7 @@ transitions=(fade left right top bottom wipe wave grow center any outer)
 trans="${transitions[RANDOM % ${#transitions[@]}]}"
 awww img --transition-type "$trans" --transition-duration 1.5 --transition-fps 60 "$wallpaper" &
 
-colors=$("$PYTHON" "$QS_DIR/extract-palette.py" "$wallpaper") || exit 1
+colors=$("$PYTHON" "$QS_DIR/scripts/extract-palette.py" "$wallpaper") || exit 1
 
 printf '%s' "$colors" > "$QS_DIR/custom-palette"
 quickshell ipc -c default call theme setCustom

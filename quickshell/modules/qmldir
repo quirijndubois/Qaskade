@@ -1,0 +1,14 @@
+AudioModule 1.0 AudioModule.qml
+BarText 1.0 BarText.qml
+BatteryModule 1.0 BatteryModule.qml
+BluetoothModule 1.0 BluetoothModule.qml
+ClockModule 1.0 ClockModule.qml
+CpuModule 1.0 CpuModule.qml
+GpuModule 1.0 GpuModule.qml
+InhibitModule 1.0 InhibitModule.qml
+MemoryModule 1.0 MemoryModule.qml
+MusicModule 1.0 MusicModule.qml
+NetworkModule 1.0 NetworkModule.qml
+Separator 1.0 Separator.qml
+TrayModule 1.0 TrayModule.qml
+WorkspacesModule 1.0 WorkspacesModule.qml

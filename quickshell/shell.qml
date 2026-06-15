@@ -4,6 +4,8 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.Notifications
 import QtQuick
+import "./modules"
+import "./windows"
 
 ShellRoot {
     id: root

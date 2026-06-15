@@ -280,7 +280,7 @@ Singleton {
         const escaped = themeContent.replace(/'/g, "'\\''")
         kittyThemeSaveProc.command = ["sh", "-c",
             "mkdir -p \"$HOME/.config/kitty\" && printf '%s' '" + escaped + "' > $HOME/.config/kitty/color_scheme.conf && " +
-            "\"$HOME/.config/quickshell/update-kitty-colors.sh\" \"$HOME/.config/kitty/color_scheme.conf\" 2>/dev/null || true"
+            "\"$HOME/.config/quickshell/scripts/update-kitty-colors.sh\" \"$HOME/.config/kitty/color_scheme.conf\" 2>/dev/null || true"
         ]
         kittyThemeSaveProc.running = false
         kittyThemeSaveProc.running = true

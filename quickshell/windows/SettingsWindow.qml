@@ -3,6 +3,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import QtQuick
+import "../"
 
 FloatingWindow {
     id: root
@@ -374,7 +375,7 @@ FloatingWindow {
 
     Process {
         id: appsProc
-        command: ["sh", "-c", "python3 \"$HOME/.config/quickshell/list_apps.py\""]
+        command: ["sh", "-c", "python3 \"$HOME/.config/quickshell/scripts/list_apps.py\""]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
@@ -1003,7 +1004,7 @@ FloatingWindow {
         if (root.wallpaperFiles.length === 0 || root.extractingPalette) return
         const file = root.wallpaperFiles[root.selectedIndex]
         const python = root.homeDir + "/.conda/envs/pywalfox/bin/python3"
-        const script = root.homeDir + "/.config/quickshell/extract-palette.py"
+        const script = root.homeDir + "/.config/quickshell/scripts/extract-palette.py"
         extractPaletteProc.command = [python, script, root.wallpapersDir + file]
         root.extractingPalette = true
         extractPaletteProc.running = false

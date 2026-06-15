@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import Quickshell.Wayland._IdleInhibitor
+import "../"
 
 BarText {
     id: root

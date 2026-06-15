@@ -1,46 +1,47 @@
 import QtQuick
 import Quickshell.Io
+import "../"
 
 BarText {
     id: root
-    color: Theme.blue
+    color: Theme.red
 
     property var screen: null
-    property int gpuUsage: 0
-    property int vramUsed: 0
-    property int vramTotal: 0
+    property int memUsage: 0
+    property real memUsedGB: 0
+    property real memTotalGB: 0
     property var topProcs: []
 
-    text: "gpu " + gpuUsage + "%"
+    text: "mem " + memUsage + "%"
 
     Process {
-        id: gpuProc
-        command: ["sh", "-c",
-            "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null || echo '0, 0, 0'"]
+        id: memProc
+        command: ["sh", "-c", "awk '/MemTotal:/{t=$2} /MemAvailable:/{a=$2} END{print t,a}' /proc/meminfo"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                const parts = this.text.trim().split(",").map(s => parseInt(s.trim()) || 0)
-                root.gpuUsage  = Math.min(100, Math.max(0, parts[0]))
-                root.vramUsed  = parts[1]
-                root.vramTotal = parts[2]
+                const parts = this.text.trim().split(" ")
+                const total = parseInt(parts[0]) || 0
+                const avail = parseInt(parts[1]) || 0
+                root.memTotalGB = parseFloat((total / 1048576).toFixed(1))
+                root.memUsedGB  = parseFloat(((total - avail) / 1048576).toFixed(1))
+                root.memUsage   = total > 0 ? Math.round((total - avail) / total * 100) : 0
             }
         }
     }
 
     Timer {
-        interval: 2000
+        interval: 5000
         running: true
         repeat: true
-        onTriggered: gpuProc.running = true
+        onTriggered: memProc.running = true
     }
 
     Process {
-        id: topGpuProc
+        id: topMemProc
         command: ["sh", "-c",
-            "nvidia-smi --query-compute-apps=name,used_memory --format=csv,noheader 2>/dev/null | " +
-            "awk -F', ' '{ n=$1; sub(/.*\\//, \"\", n); gsub(/ MiB$/, \"\", $2); printf \"%s\\t%s\\n\", n, $2 }' | " +
-            "sort -t'\t' -k2 -rn | head -5"]
+            "ps --no-headers -eo comm,rss --sort=-rss 2>/dev/null | head -10 | " +
+            "awk '$2+0>0 && $1!~/^\\[/ { n=$1; sub(/.*\\//, \"\", n); sub(/:.*/, \"\", n); printf \"%s\\t%d\\n\", n, $2/1024 }' | head -5"]
         stdout: StdioCollector {
             onStreamFinished: {
                 root.topProcs = this.text.trim().split("\n")
@@ -53,21 +54,21 @@ BarText {
     Connections {
         target: BarHover
         function onActiveModuleChanged() {
-            if (BarHover.activeModule === "gpu") topGpuProc.running = true
+            if (BarHover.activeModule === "memory") topMemProc.running = true
         }
     }
 
     Timer {
         interval: 4000
-        running: BarHover.activeModule === "gpu"
+        running: BarHover.activeModule === "memory"
         repeat: true
-        onTriggered: if (!topGpuProc.running) topGpuProc.running = true
+        onTriggered: if (!topMemProc.running) topMemProc.running = true
     }
 
     HoverHandler {
         onHoveredChanged: {
             if (hovered)
-                BarHover.show("gpu", popup, root.mapToItem(null, root.width / 2, 0).x, 210, root.screen)
+                BarHover.show("memory", popup, root.mapToItem(null, root.width / 2, 0).x, 210, root.screen)
             else
                 BarHover.startHide()
         }
@@ -82,16 +83,15 @@ BarText {
             Row {
                 spacing: 8
                 Text {
-                    text: root.gpuUsage + "%"
-                    color: Theme.blue
+                    text: root.memUsage + "%"
+                    color: Theme.red
                     font.family: Theme.barFontFamily
                     font.pixelSize: 20
                     font.bold: true
                 }
                 Text {
                     anchors.bottom: parent.bottom; anchors.bottomMargin: 3
-                    visible: root.vramTotal > 0
-                    text: root.vramUsed + " / " + root.vramTotal + " MB"
+                    text: root.memUsedGB + " / " + root.memTotalGB + " GB"
                     color: Theme.subtext
                     font.family: Theme.barFontFamily
                     font.pixelSize: 10
@@ -104,9 +104,9 @@ BarText {
                 radius: 2
                 color: Theme.border
                 Rectangle {
-                    width: parent.parent.width * (root.gpuUsage / 100)
+                    width: parent.parent.width * (root.memUsage / 100)
                     height: parent.height; radius: parent.radius
-                    color: root.gpuUsage > 80 ? Theme.red : root.gpuUsage > 50 ? Theme.yellow : Theme.blue
+                    color: root.memUsage > 85 ? Theme.red : root.memUsage > 65 ? Theme.yellow : Theme.teal
                     Behavior on width { NumberAnimation { duration: 300 } }
                 }
             }
@@ -114,7 +114,7 @@ BarText {
             Rectangle { width: parent.width; height: 1; color: Theme.border; opacity: 0.5 }
 
             Text {
-                text: root.topProcs.length > 0 ? "gpu processes" : "no gpu processes"
+                text: "top processes"
                 color: Theme.subtext
                 font.family: Theme.barFontFamily
                 font.pixelSize: 10
@@ -123,7 +123,6 @@ BarText {
             Column {
                 width: parent.width
                 spacing: 3
-                visible: root.topProcs.length > 0
                 Repeater {
                     model: root.topProcs
                     Row {
@@ -140,7 +139,7 @@ BarText {
                         Text {
                             id: valText
                             text: modelData.value + " MB"
-                            color: Theme.blue
+                            color: Theme.red
                             font.family: Theme.barFontFamily
                             font.pixelSize: 11
                         }

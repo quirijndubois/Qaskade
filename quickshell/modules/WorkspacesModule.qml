@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
+import "../"
 
 Item {
     id: root

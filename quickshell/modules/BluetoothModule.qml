@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
 import Quickshell.Bluetooth
+import "../"
 
 BarText {
     id: root
