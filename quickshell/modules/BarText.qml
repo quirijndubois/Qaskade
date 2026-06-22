@@ -7,8 +7,18 @@ Item {
     property alias text: label.text
     property alias color: label.color
 
+    property string moduleId: ""
+    property Component modulePopup: null
+    property real popupHeight: 0
+    property var screen: null
+
     implicitWidth: label.implicitWidth + (Theme.design === "pills" ? 20 : 0)
     implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : label.implicitHeight
+
+    onPopupHeightChanged: {
+        if (moduleId !== "" && BarHover.activeModule === moduleId)
+            BarHover.popupH = popupHeight
+    }
 
     Rectangle {
         visible: Theme.design === "pills"
@@ -30,5 +40,15 @@ Item {
         font.bold: Theme.barFontBold
         verticalAlignment: Text.AlignVCenter
         renderType: Text.NativeRendering
+    }
+
+    HoverHandler {
+        enabled: root.moduleId !== ""
+        onHoveredChanged: {
+            if (hovered)
+                BarHover.show(root.moduleId, root.modulePopup, root.mapToItem(null, root.width / 2, 0).x, root.popupHeight, root.screen)
+            else
+                BarHover.startHide()
+        }
     }
 }

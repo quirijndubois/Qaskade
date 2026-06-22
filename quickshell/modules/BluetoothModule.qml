@@ -7,7 +7,6 @@ BarText {
     id: root
     color: Theme.teal
 
-    property var screen: null
     property bool btEnabled: Bluetooth.defaultAdapter ? Bluetooth.defaultAdapter.enabled : false
     property int connectedCount: 0
     property var connectedNames: []
@@ -17,6 +16,9 @@ BarText {
         if (connectedCount > 0) return "bt " + connectedCount
         return "bt on"
     }
+
+    moduleId: "bluetooth"
+    modulePopup: popup
 
     Item {
         width: 0; height: 0
@@ -58,15 +60,6 @@ BarText {
     Process {
         id: bluemanProc
         command: ["blueman-manager"]
-    }
-
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("bluetooth", popup, root.mapToItem(null, root.width / 2, 0).x, 0, root.screen)
-            else
-                BarHover.startHide()
-        }
     }
 
     Component {

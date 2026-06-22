@@ -1264,7 +1264,7 @@ FloatingWindow {
                     else if (root.page === "notifications")
                         notifListView.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "system")
-                        sysListView.positionViewAtIndex(downScroll, ListView.Contain)
+                        sysListView.positionViewAtIndex(Math.min(downScroll, root.systemSettingItems.length - 1), ListView.Contain)
                     else if (root.page === "lockscreen")
                         lockscreenList.positionViewAtIndex(downScroll, ListView.Contain)
                 }
@@ -1613,9 +1613,9 @@ FloatingWindow {
                             text: modelData.icon || ""
                             color: Theme.purple
                             font.family: "Symbols Nerd Font Mono"
-                            font.pixelSize: sf + 1
+                            font.pixelSize: sf + 4
                             verticalAlignment: Text.AlignVCenter
-                            width: 20
+                            width: 24
                         }
 
                         Text {
@@ -1720,9 +1720,9 @@ FloatingWindow {
                                 text: modelData.icon || ""
                                 color: Theme.purple
                                 font.family: "Symbols Nerd Font Mono"
-                                font.pixelSize: sf + 1
+                                font.pixelSize: sf + 4
                                 verticalAlignment: Text.AlignVCenter
-                                width: 20
+                                width: 24
                             }
 
                             Text {

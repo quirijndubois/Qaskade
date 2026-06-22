@@ -63,7 +63,7 @@ The setting is persisted to `~/.config/quickshell/vim-binds`.
 
 ## Internals
 
-**File:** `quickshell/SettingsWindow.qml`
+**File:** `quickshell/windows/SettingsWindow.qml`
 
 ### Window and Focus
 

@@ -42,7 +42,7 @@ Switch designs via **Settings → Appearance → Lock Screen**. The selected des
 
 ## Internals
 
-**File:** `quickshell/LockScreen.qml`
+**File:** `quickshell/windows/LockScreen.qml`
 
 ### Wayland Session Lock
 

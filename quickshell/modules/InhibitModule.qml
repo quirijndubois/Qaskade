@@ -6,23 +6,16 @@ import "../"
 BarText {
     id: root
 
-    property var screen: null
-
     text: "☾"
     color: InhibitState.inhibited ? Theme.yellow : Theme.subtext
+
+    moduleId: "inhibit"
+    modulePopup: popup
+    popupHeight: 80
 
     IdleInhibitor {
         enabled: InhibitState.inhibited
         window:  root.Window.window
-    }
-
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("inhibit", popup, root.mapToItem(null, root.width / 2, 0).x, 80, root.screen)
-            else
-                BarHover.startHide()
-        }
     }
 
     MouseArea {

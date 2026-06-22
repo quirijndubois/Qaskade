@@ -6,7 +6,6 @@ BarText {
     id: root
     color: Theme.blue
 
-    property var screen: null
     property int cpuUsage: 0
     property var prevStat: null
     property var coreStat: []
@@ -14,6 +13,9 @@ BarText {
     property var topProcs: []
 
     text: "cpu " + cpuUsage + "%"
+    moduleId: "cpu"
+    modulePopup: popup
+    popupHeight: 220
 
     Process {
         id: statProc
@@ -23,7 +25,6 @@ BarText {
             onStreamFinished: {
                 const lines = this.text.trim().split("\n")
 
-                // First line is aggregate
                 const aggParts = lines[0].trim().split(/\s+/)
                 const aggVals = aggParts.slice(1).map(v => parseInt(v) || 0)
                 const aggIdle = aggVals[3] + (aggVals[4] || 0)
@@ -35,7 +36,6 @@ BarText {
                 }
                 root.prevStat = { idle: aggIdle, total: aggTotal }
 
-                // Remaining lines are per-core
                 const coreLines = lines.slice(1)
                 const newStat = []
                 const usage = []
@@ -95,15 +95,6 @@ BarText {
         onTriggered: if (!topProc.running) topProc.running = true
     }
 
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("cpu", popup, root.mapToItem(null, root.width / 2, 0).x, 220, root.screen)
-            else
-                BarHover.startHide()
-        }
-    }
-
     Component {
         id: popup
         Column {
@@ -118,25 +109,18 @@ BarText {
                 font.bold: true
             }
 
-            Rectangle {
+            UsageBar {
                 width: parent.width
-                height: 5
-                radius: 2
-                color: Theme.border
-                Rectangle {
-                    width: parent.parent.width * (root.cpuUsage / 100)
-                    height: parent.height; radius: parent.radius
-                    color: root.cpuUsage > 80 ? Theme.red : root.cpuUsage > 50 ? Theme.yellow : Theme.blue
-                    Behavior on width { NumberAnimation { duration: 300 } }
-                }
+                value: root.cpuUsage
+                fillColor: Theme.blue
             }
 
             Item {
                 id: coreRow
                 width: parent.width
                 height: 14
-                property real barW: coreUsage.length > 0
-                    ? Math.floor((width - coreUsage.length + 1) / coreUsage.length)
+                property real barW: root.coreUsage.length > 0
+                    ? Math.floor((width - root.coreUsage.length + 1) / root.coreUsage.length)
                     : width
 
                 Repeater {
@@ -160,40 +144,10 @@ BarText {
                 }
             }
 
-            Rectangle { width: parent.width; height: 1; color: Theme.border; opacity: 0.5 }
-
-            Text {
-                text: "top processes"
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 10
-            }
-
-            Column {
+            ProcessList {
                 width: parent.width
-                spacing: 3
-                Repeater {
-                    model: root.topProcs
-                    Row {
-                        required property var modelData
-                        width: parent.width
-                        Text {
-                            width: parent.width - valText.width
-                            text: modelData.name
-                            color: Theme.text
-                            font.family: Theme.barFontFamily
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            id: valText
-                            text: modelData.value + "%"
-                            color: Theme.blue
-                            font.family: Theme.barFontFamily
-                            font.pixelSize: 11
-                        }
-                    }
-                }
+                processes: root.topProcs
+                accentColor: Theme.blue
             }
         }
     }

@@ -6,13 +6,15 @@ BarText {
     id: root
     color: Theme.red
 
-    property var screen: null
     property int memUsage: 0
     property real memUsedGB: 0
     property real memTotalGB: 0
     property var topProcs: []
 
     text: "mem " + memUsage + "%"
+    moduleId: "memory"
+    modulePopup: popup
+    popupHeight: 210
 
     Process {
         id: memProc
@@ -65,15 +67,6 @@ BarText {
         onTriggered: if (!topMemProc.running) topMemProc.running = true
     }
 
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("memory", popup, root.mapToItem(null, root.width / 2, 0).x, 210, root.screen)
-            else
-                BarHover.startHide()
-        }
-    }
-
     Component {
         id: popup
         Column {
@@ -98,53 +91,19 @@ BarText {
                 }
             }
 
-            Rectangle {
+            UsageBar {
                 width: parent.width
-                height: 5
-                radius: 2
-                color: Theme.border
-                Rectangle {
-                    width: parent.parent.width * (root.memUsage / 100)
-                    height: parent.height; radius: parent.radius
-                    color: root.memUsage > 85 ? Theme.red : root.memUsage > 65 ? Theme.yellow : Theme.teal
-                    Behavior on width { NumberAnimation { duration: 300 } }
-                }
+                value: root.memUsage
+                fillColor: Theme.teal
+                warnAt: 65
+                critAt: 85
             }
 
-            Rectangle { width: parent.width; height: 1; color: Theme.border; opacity: 0.5 }
-
-            Text {
-                text: "top processes"
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 10
-            }
-
-            Column {
+            ProcessList {
                 width: parent.width
-                spacing: 3
-                Repeater {
-                    model: root.topProcs
-                    Row {
-                        required property var modelData
-                        width: parent.width
-                        Text {
-                            width: parent.width - valText.width
-                            text: modelData.name
-                            color: Theme.text
-                            font.family: Theme.barFontFamily
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                        }
-                        Text {
-                            id: valText
-                            text: modelData.value + " MB"
-                            color: Theme.red
-                            font.family: Theme.barFontFamily
-                            font.pixelSize: 11
-                        }
-                    }
-                }
+                processes: root.topProcs
+                accentColor: Theme.red
+                unit: " MB"
             }
         }
     }

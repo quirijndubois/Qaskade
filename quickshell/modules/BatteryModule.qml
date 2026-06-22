@@ -6,7 +6,6 @@ BarText {
     id: root
     color: Theme.green
 
-    property var screen: null
     property var device: UPower.displayDevice
 
     function getBatteryPct(dev) {
@@ -15,7 +14,6 @@ BarText {
         // quickshell exposes percentage as 0.0–1.0
         if (raw > 0 && raw <= 1) return Math.round(raw * 100)
         if (raw > 1) return Math.round(raw)
-        // fallback: calculate from energy properties
         if (dev.energyCapacity > 0) return Math.round((dev.energy / dev.energyCapacity) * 100)
         return 0
     }
@@ -46,14 +44,8 @@ BarText {
         return h > 0 ? h + "h " + m + "m left" : m + "m left"
     }
 
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("battery", popup, root.mapToItem(null, root.width / 2, 0).x, 0, root.screen)
-            else
-                BarHover.startHide()
-        }
-    }
+    moduleId: "battery"
+    modulePopup: popup
 
     Component {
         id: popup
@@ -88,20 +80,13 @@ BarText {
                 }
             }
 
-            Rectangle {
+            UsageBar {
                 width: parent.width
-                height: 5
-                radius: 2
-                color: Theme.border
-
-                Rectangle {
-                    property int pct: root.getBatteryPct(root.device)
-                    width: pct < 0 ? 0 : parent.parent.width * Math.min(1, pct / 100)
-                    height: parent.height
-                    radius: parent.radius
-                    color: pct < 20 ? Theme.red : pct < 40 ? Theme.yellow : Theme.green
-                    Behavior on width { NumberAnimation { duration: 400 } }
-                }
+                value: Math.max(0, root.getBatteryPct(root.device))
+                fillColor: Theme.green
+                warnAt: 40
+                critAt: 20
+                invertThresholds: true
             }
 
             Text {

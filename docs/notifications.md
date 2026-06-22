@@ -46,7 +46,7 @@ systemctl --user mask dunst
 
 ## Internals
 
-**Files:** `quickshell/Notifications.qml`, `quickshell/WorkspacesModule.qml`, `quickshell/shell.qml`
+**Files:** `quickshell/Notifications.qml`, `quickshell/modules/WorkspacesModule.qml`, `quickshell/shell.qml`
 
 ### Singleton History Store
 

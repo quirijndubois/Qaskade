@@ -27,7 +27,7 @@ Press `Alt + R` to pick a random wallpaper from `~/wallpapers/`, apply it with a
 
 ## Internals
 
-**Files:** `quickshell/extract-palette.py`, `quickshell/random-wallpaper.sh`
+**Files:** `quickshell/scripts/extract-palette.py`, `quickshell/scripts/random-wallpaper.sh`
 
 ### Extraction Pipeline
 

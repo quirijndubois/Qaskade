@@ -222,7 +222,7 @@ hl.bind(mainMod .. " + C", hl.dsp.exec_cmd("hyprpicker -a"))
 hl.bind(mainMod .. " + SHIFT + C", hl.dsp.exec_cmd("hyprshot -m region"))
 hl.bind(mainMod .. " + S", hl.dsp.exec_cmd("quickshell ipc -c default call settings toggle"))
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("quickshell ipc -c default call statusbar toggle"))
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh \"$HOME/.config/quickshell/random-wallpaper.sh\""))
+hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh \"$HOME/.config/quickshell/scripts/random-wallpaper.sh\""))
 
 -- Move focus with arrow keys and vim keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))

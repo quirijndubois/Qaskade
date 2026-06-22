@@ -9,6 +9,8 @@ InhibitModule 1.0 InhibitModule.qml
 MemoryModule 1.0 MemoryModule.qml
 MusicModule 1.0 MusicModule.qml
 NetworkModule 1.0 NetworkModule.qml
+ProcessList 1.0 ProcessList.qml
 Separator 1.0 Separator.qml
 TrayModule 1.0 TrayModule.qml
+UsageBar 1.0 UsageBar.qml
 WorkspacesModule 1.0 WorkspacesModule.qml

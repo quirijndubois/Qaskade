@@ -188,9 +188,7 @@ Singleton {
 
     onNameChanged: {
         applyPalette(name)
-        saveProc.command = ["sh", "-c", "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + name + "' > $HOME/.config/quickshell/theme"]
-        saveProc.running = false
-        saveProc.running = true
+        saveToFile(saveProc, "theme", name)
         updateKittyTheme()
         updateFirefoxTheme()
         updateSystemColorScheme()
@@ -198,32 +196,21 @@ Singleton {
 
     onDesignChanged: {
         applyDesign(design)
-        saveDesignProc.command = ["sh", "-c", "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + design + "' > $HOME/.config/quickshell/design"]
-        saveDesignProc.running = false
-        saveDesignProc.running = true
+        saveToFile(saveDesignProc, "design", design)
     }
 
-    onLockDesignChanged: {
-        saveLockDesignProc.command = ["sh", "-c", "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + lockDesign + "' > $HOME/.config/quickshell/lock-design"]
-        saveLockDesignProc.running = false
-        saveLockDesignProc.running = true
-    }
+    onLockDesignChanged: saveToFile(saveLockDesignProc, "lock-design", lockDesign)
 
     function saveBarModules() {
-        const data = JSON.stringify({
+        saveToFile(barModulesSaveProc, "bar-modules", JSON.stringify({
             showClock: root.showClock, showBattery: root.showBattery,
             showCpu: root.showCpu, showMemory: root.showMemory,
             showAudio: root.showAudio, showBluetooth: root.showBluetooth,
             showNetwork: root.showNetwork, showTray: root.showTray,
             showWorkspaces: root.showWorkspaces, showMenu: root.showMenu,
-            showGpu: root.showGpu,
-            showMusic: root.showMusic,
+            showGpu: root.showGpu, showMusic: root.showMusic,
             showInhibit: root.showInhibit
-        })
-        const escaped = data.replace(/'/g, "'\\''")
-        barModulesSaveProc.command = ["sh", "-c", "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + escaped + "' > $HOME/.config/quickshell/bar-modules"]
-        barModulesSaveProc.running = false
-        barModulesSaveProc.running = true
+        }))
     }
 
     function updateFirefoxTheme() {
@@ -300,17 +287,9 @@ Singleton {
     onShowMusicChanged: saveBarModules()
     onShowInhibitChanged: saveBarModules()
 
-    onBarFontSizeChanged: {
-        saveBarFontSizeProc.command = ["sh", "-c", "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + root.barFontSize + "' > $HOME/.config/quickshell/bar-font-size"]
-        saveBarFontSizeProc.running = false
-        saveBarFontSizeProc.running = true
-    }
+    onBarFontSizeChanged: saveToFile(saveBarFontSizeProc, "bar-font-size", barFontSize)
 
-    onVimBindsChanged: {
-        saveVimBindsProc.command = ["sh", "-c", "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + (root.vimBinds ? "1" : "0") + "' > $HOME/.config/quickshell/vim-binds"]
-        saveVimBindsProc.running = false
-        saveVimBindsProc.running = true
-    }
+    onVimBindsChanged: saveToFile(saveVimBindsProc, "vim-binds", vimBinds ? "1" : "0")
 
     function updateSystemColorScheme() {
         const t = root._target
@@ -379,6 +358,14 @@ Singleton {
         ]
         systemColorSchemeProc.running = false
         systemColorSchemeProc.running = true
+    }
+
+    function saveToFile(proc, filename, content) {
+        const safe = String(content).replace(/'/g, "'\\''")
+        proc.command = ["sh", "-c",
+            "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + safe + "' > \"$HOME/.config/quickshell/" + filename + "\""]
+        proc.running = false
+        proc.running = true
     }
 
     function loadCustomPalette() {

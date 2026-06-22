@@ -4,11 +4,12 @@ import "../"
 BarText {
     id: root
 
-    property var screen: null
     property string timeStr: Qt.formatTime(new Date(), "hh:mm")
     property string dateStr: Qt.formatDate(new Date(), "dddd, MMMM d")
 
     text: timeStr
+    moduleId: "clock"
+    modulePopup: popup
 
     Timer {
         interval: 1000
@@ -17,15 +18,6 @@ BarText {
         onTriggered: {
             root.timeStr = Qt.formatTime(new Date(), "hh:mm")
             root.dateStr = Qt.formatDate(new Date(), "dddd, MMMM d")
-        }
-    }
-
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("clock", popup, root.mapToItem(null, root.width / 2, 0).x, 0, root.screen)
-            else
-                BarHover.startHide()
         }
     }
 

@@ -6,12 +6,13 @@ BarText {
     id: root
     color: Theme.purple
 
-    property var screen: null
     property string netText: "net --"
     property string ssidFull: ""
     property string ipText: ""
 
     text: netText
+    moduleId: "network"
+    modulePopup: popup
 
     Process {
         id: netProc
@@ -64,15 +65,6 @@ BarText {
     Process {
         id: nmEditor
         command: ["nm-connection-editor"]
-    }
-
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show("network", popup, root.mapToItem(null, root.width / 2, 0).x, 0, root.screen)
-            else
-                BarHover.startHide()
-        }
     }
 
     Component {

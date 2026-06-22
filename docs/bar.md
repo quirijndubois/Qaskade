@@ -50,7 +50,7 @@ Hovering any bar module opens a popup card below the bar. Moving between modules
 
 ## Internals
 
-**Files:** `quickshell/shell.qml`, `quickshell/BarHover.qml`, `quickshell/BarText.qml`, `quickshell/Separator.qml`
+**Files:** `quickshell/shell.qml`, `quickshell/BarHover.qml`, `quickshell/modules/BarText.qml`, `quickshell/modules/Separator.qml`
 
 ### Multi-Monitor with Variants
 
