@@ -184,6 +184,7 @@ Singleton {
         updateKittyTheme()
         updateFirefoxTheme()
         updateSystemColorScheme()
+        updateHyprlandBorder()
     }
 
     onNameChanged: {
@@ -192,6 +193,7 @@ Singleton {
         updateKittyTheme()
         updateFirefoxTheme()
         updateSystemColorScheme()
+        updateHyprlandBorder()
     }
 
     onDesignChanged: {
@@ -211,6 +213,20 @@ Singleton {
             showGpu: root.showGpu, showMusic: root.showMusic,
             showInhibit: root.showInhibit
         }))
+    }
+
+    function updateHyprlandBorder() {
+        const c = root._target
+        function toRgba(hex, alpha) {
+            return "rgba(" + hex.slice(1).toLowerCase() + alpha + ")"
+        }
+        const col1 = toRgba(c.blue, "cc")
+        const col2 = toRgba(c.purple, "88")
+        hyprBorderProc.command = ["sh", "-c",
+            "hyprctl eval \"hl.config({ general = { col = { active_border = { colors = { '" + col1 + "', '" + col2 + "' }, angle = 45 } } } })\""
+        ]
+        hyprBorderProc.running = false
+        hyprBorderProc.running = true
     }
 
     function updateFirefoxTheme() {
@@ -373,6 +389,7 @@ Singleton {
         customPaletteProc.running = true
     }
 
+    Process { id: hyprBorderProc }
     Process { id: saveProc }
     Process { id: saveDesignProc }
     Process { id: saveLockDesignProc }
@@ -398,6 +415,7 @@ Singleton {
                 updateKittyTheme()
                 updateFirefoxTheme()
                 updateSystemColorScheme()
+                updateHyprlandBorder()
             }
         }
     }

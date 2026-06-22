@@ -60,11 +60,11 @@ hl.config({
 		gaps_in = 5,
 		gaps_out = 10,
 
-		border_size = 0,
+		border_size = 1,
 
 		col = {
-			active_border = { colors = { "rgba(595959aa)", "rgba(595959aa)" }, angle = 45 },
-			inactive_border = "rgba(595959aa)",
+			active_border = { colors = { "rgba(888888cc)", "rgba(aaaaaa88)" }, angle = 45 },
+			inactive_border = "rgba(33333300)",
 		},
 
 		resize_on_border = false,
@@ -145,6 +145,7 @@ hl.window_rule({
 	float = true,
 	pin = true,
 	move = "center center",
+	border_size = 0,
 })
 
 ----------------

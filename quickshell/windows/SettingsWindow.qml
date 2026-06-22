@@ -334,7 +334,7 @@ FloatingWindow {
         { id: "lock",      label: "lock",      icon: "",  color: "blue",   cmd: ["loginctl", "lock-session"] },
         { id: "suspend",   label: "suspend",   icon: "",  color: "teal",   cmd: ["systemctl", "suspend"] },
         { id: "hibernate", label: "hibernate", icon: "󰤄",  color: "purple", cmd: ["systemctl", "hibernate"] },
-        { id: "logout",    label: "log out",   icon: "",  color: "yellow", cmd: ["hyprctl", "dispatch", "exit"] },
+        { id: "logout",    label: "log out",   icon: "󰍃",  color: "yellow", cmd: ["hyprctl", "dispatch", "exit"] },
         { id: "reboot",    label: "reboot",    icon: "",  color: "yellow", cmd: ["systemctl", "reboot"] },
         { id: "shutdown",  label: "shut down", icon: "⏻",  color: "red",    cmd: ["systemctl", "poweroff"] },
     ]
@@ -439,6 +439,7 @@ FloatingWindow {
                 Theme.updateKittyTheme()
                 Theme.updateFirefoxTheme()
                 Theme.updateSystemColorScheme()
+                Theme.updateHyprlandBorder()
             }
         }
         onRunningChanged: { if (!running) root.extractingPalette = false }
