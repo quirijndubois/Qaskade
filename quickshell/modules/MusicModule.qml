@@ -40,7 +40,8 @@ Item {
     property bool isPlaying: player !== null && player.isPlaying
     property bool isPaused:  player !== null && !player.isPlaying && player.playbackState !== MprisPlaybackState.Stopped
 
-    visible: player !== null && Theme.showMusic
+    property string targetRow: "right"
+    visible: player !== null && Theme.showMusic === targetRow
 
     implicitWidth: bars.width + (Theme.design === "pills" ? 20 : 0)
     implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : 18

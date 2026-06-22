@@ -5,7 +5,8 @@ import "../"
 
 Item {
     id: root
-    visible: trayRepeater.count > 0 && Theme.showTray
+    property string targetRow: "right"
+    visible: trayRepeater.count > 0 && Theme.showTray === targetRow
 
     implicitWidth: innerRow.implicitWidth + (Theme.design === "pills" ? 20 : 0)
     implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : innerRow.implicitHeight

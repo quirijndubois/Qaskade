@@ -33,18 +33,18 @@ Item {
                 property bool isFocused: modelData.focused
 
                 function updateHighlightPosition() {
-                    const itemX = row.x + index * (24 + row.spacing)
-                    root.highlightX = itemX
+                    if (!visible) return
+                    root.highlightX = row.x + x
                 }
 
                 onIsFocusedChanged: {
-                    if (isFocused) {
+                    if (isFocused && visible) {
                         Qt.callLater(() => updateHighlightPosition())
                     }
                 }
 
                 Component.onCompleted: {
-                    if (modelData.focused) {
+                    if (modelData.focused && visible) {
                         Qt.callLater(() => updateHighlightPosition())
                     }
                 }

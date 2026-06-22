@@ -15,19 +15,19 @@ Singleton {
     property string barFontFamily: "JetBrains Mono"
     property bool   barFontBold:   false
     property string separatorText: "  │  "
-    property bool showClock:      true
-    property bool showBattery:    true
-    property bool showCpu:        true
-    property bool showMemory:     true
-    property bool showAudio:      true
-    property bool showBluetooth:  true
-    property bool showNetwork:    true
-    property bool showTray:       true
-    property bool showWorkspaces: true
-    property bool showMenu:       true
-    property bool showGpu:        true
-    property bool showMusic:      true
-    property bool showInhibit:    true
+    property string showMenu:       "left"
+    property string showClock:      "left"
+    property string showBattery:    "left"
+    property string showCpu:        "left"
+    property string showMemory:     "left"
+    property string showGpu:        "left"
+    property string showWorkspaces: "center"
+    property string showMusic:      "right"
+    property string showAudio:      "right"
+    property string showBluetooth:  "right"
+    property string showNetwork:    "right"
+    property string showInhibit:    "right"
+    property string showTray:       "right"
     property int  gapsOut:        10
     property bool vimBinds:     false
 
@@ -465,6 +465,11 @@ Singleton {
         }
     }
 
+    function _migratePos(val, def) {
+        if (typeof val === "boolean") return val ? def : "disabled"
+        return val
+    }
+
     Process {
         id: loadBarModulesProc
         command: ["sh", "-c", "cat $HOME/.config/quickshell/bar-modules 2>/dev/null"]
@@ -475,19 +480,19 @@ Singleton {
                 if (saved) {
                     try {
                         const obj = JSON.parse(saved)
-                        if (obj.showClock !== undefined) root.showClock = obj.showClock
-                        if (obj.showBattery !== undefined) root.showBattery = obj.showBattery
-                        if (obj.showCpu !== undefined) root.showCpu = obj.showCpu
-                        if (obj.showMemory !== undefined) root.showMemory = obj.showMemory
-                        if (obj.showAudio !== undefined) root.showAudio = obj.showAudio
-                        if (obj.showBluetooth !== undefined) root.showBluetooth = obj.showBluetooth
-                        if (obj.showNetwork !== undefined) root.showNetwork = obj.showNetwork
-                        if (obj.showTray !== undefined) root.showTray = obj.showTray
-                        if (obj.showWorkspaces !== undefined) root.showWorkspaces = obj.showWorkspaces
-                        if (obj.showMenu !== undefined) root.showMenu = obj.showMenu
-                        if (obj.showGpu !== undefined) root.showGpu = obj.showGpu
-                        if (obj.showMusic !== undefined) root.showMusic = obj.showMusic
-                        if (obj.showInhibit !== undefined) root.showInhibit = obj.showInhibit
+                        if (obj.showMenu !== undefined)       root.showMenu       = root._migratePos(obj.showMenu,       "left")
+                        if (obj.showClock !== undefined)      root.showClock      = root._migratePos(obj.showClock,      "left")
+                        if (obj.showBattery !== undefined)    root.showBattery    = root._migratePos(obj.showBattery,    "left")
+                        if (obj.showCpu !== undefined)        root.showCpu        = root._migratePos(obj.showCpu,        "left")
+                        if (obj.showMemory !== undefined)     root.showMemory     = root._migratePos(obj.showMemory,     "left")
+                        if (obj.showGpu !== undefined)        root.showGpu        = root._migratePos(obj.showGpu,        "left")
+                        if (obj.showWorkspaces !== undefined) root.showWorkspaces = root._migratePos(obj.showWorkspaces, "center")
+                        if (obj.showMusic !== undefined)      root.showMusic      = root._migratePos(obj.showMusic,      "right")
+                        if (obj.showAudio !== undefined)      root.showAudio      = root._migratePos(obj.showAudio,      "right")
+                        if (obj.showBluetooth !== undefined)  root.showBluetooth  = root._migratePos(obj.showBluetooth,  "right")
+                        if (obj.showNetwork !== undefined)    root.showNetwork    = root._migratePos(obj.showNetwork,    "right")
+                        if (obj.showInhibit !== undefined)    root.showInhibit    = root._migratePos(obj.showInhibit,    "right")
+                        if (obj.showTray !== undefined)       root.showTray       = root._migratePos(obj.showTray,       "right")
                     } catch(e) {}
                 }
             }

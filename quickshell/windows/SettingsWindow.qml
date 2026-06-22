@@ -1046,7 +1046,10 @@ FloatingWindow {
     }
 
     function toggleBarModule(id) {
-        Theme[id] = !Theme[id]
+        const positions = ["left", "center", "right", "disabled"]
+        const current = Theme[id] || "disabled"
+        const idx = positions.indexOf(current)
+        Theme[id] = positions[(idx + 1) % positions.length]
     }
 
     Connections {
@@ -3598,21 +3601,30 @@ FloatingWindow {
 
                         Rectangle {
                             anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                            property bool active: !!Theme[modelData.id]
-                            width: 34; height: 18; radius: 9
-                            color: active ? Theme.green : Theme.border
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            property string pos: Theme[modelData.id] || "disabled"
+                            property int posIdx: pos === "left" ? 0 : pos === "center" ? 1 : pos === "right" ? 2 : 3
+                            width: 80; height: 20; radius: 10
+                            color: posIdx === 0 ? Theme.blue
+                                 : posIdx === 1 ? Theme.purple
+                                 : posIdx === 2 ? Theme.green
+                                 : Theme.border
+                            Behavior on color { ColorAnimation { duration: 180 } }
                             Rectangle {
+                                property int idx: parent.posIdx
                                 width: 12; height: 12; radius: 6
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: Theme.base
-                                x: parent.active ? parent.width - width - 3 : 3
-                                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                x: idx === 0 ? 3 : idx === 1 ? 24 : idx === 2 ? 45 : 65
+                                Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                             }
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: { root.selectedIndex = index; root.toggleBarModule(modelData.id) }
+                                onClicked: {
+                                    root.selectedIndex = index
+                                    const positions = ["left", "center", "right", "disabled"]
+                                    Theme[modelData.id] = positions[Math.min(3, Math.floor(mouseX / width * 4))]
+                                }
                             }
                         }
 

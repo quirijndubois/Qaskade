@@ -157,6 +157,49 @@ ShellRoot {
 
                     property bool clipboardActive: false
 
+                    // "any module before position N is visible in row R" chains.
+                    // Each property adds one more module to the OR chain.
+                    // Used by separators so two visible adjacent modules always get a divider
+                    // even when the module between them in the list is in a different row.
+                    property bool _bL1:  Theme.showMenu       === "left"
+                    property bool _bL2:  _bL1  || Theme.showClock      === "left"
+                    property bool _bL3:  _bL2  || Theme.showBattery    === "left"
+                    property bool _bL4:  _bL3  || Theme.showCpu        === "left"
+                    property bool _bL5:  _bL4  || Theme.showMemory     === "left"
+                    property bool _bL6:  _bL5  || Theme.showGpu        === "left"
+                    property bool _bL7:  _bL6  || Theme.showWorkspaces === "left"
+                    property bool _bL8:  _bL7  || (musicModL && musicModL.visible)
+                    property bool _bL9:  _bL8  || Theme.showAudio      === "left"
+                    property bool _bL10: _bL9  || Theme.showBluetooth  === "left"
+                    property bool _bL11: _bL10 || Theme.showNetwork    === "left"
+                    property bool _bL12: _bL11 || Theme.showInhibit    === "left"
+
+                    property bool _bC1:  Theme.showMenu       === "center"
+                    property bool _bC2:  _bC1  || Theme.showClock      === "center"
+                    property bool _bC3:  _bC2  || Theme.showBattery    === "center"
+                    property bool _bC4:  _bC3  || Theme.showCpu        === "center"
+                    property bool _bC5:  _bC4  || Theme.showMemory     === "center"
+                    property bool _bC6:  _bC5  || Theme.showGpu        === "center"
+                    property bool _bC7:  _bC6  || Theme.showWorkspaces === "center"
+                    property bool _bC8:  _bC7  || (musicModC && musicModC.visible)
+                    property bool _bC9:  _bC8  || Theme.showAudio      === "center"
+                    property bool _bC10: _bC9  || Theme.showBluetooth  === "center"
+                    property bool _bC11: _bC10 || Theme.showNetwork    === "center"
+                    property bool _bC12: _bC11 || Theme.showInhibit    === "center"
+
+                    property bool _bR1:  Theme.showMenu       === "right"
+                    property bool _bR2:  _bR1  || Theme.showClock      === "right"
+                    property bool _bR3:  _bR2  || Theme.showBattery    === "right"
+                    property bool _bR4:  _bR3  || Theme.showCpu        === "right"
+                    property bool _bR5:  _bR4  || Theme.showMemory     === "right"
+                    property bool _bR6:  _bR5  || Theme.showGpu        === "right"
+                    property bool _bR7:  _bR6  || Theme.showWorkspaces === "right"
+                    property bool _bR8:  _bR7  || (musicModR && musicModR.visible)
+                    property bool _bR9:  _bR8  || Theme.showAudio      === "right"
+                    property bool _bR10: _bR9  || Theme.showBluetooth  === "right"
+                    property bool _bR11: _bR10 || Theme.showNetwork    === "right"
+                    property bool _bR12: _bR11 || Theme.showInhibit    === "right"
+
                     Timer {
                         id: notifTimer
                         interval: 5000
@@ -216,13 +259,13 @@ ShellRoot {
                         anchors {
                             left: parent.left
                             verticalCenter: parent.verticalCenter
-                            leftMargin: Theme.design === "islands" ? Theme.gapsOut + 12 : (Theme.showMenu ? Theme.gapsOut : 4)
+                            leftMargin: Theme.design === "islands" ? Theme.gapsOut + 12 : (Theme.showMenu === "left" ? Theme.gapsOut : 4)
                         }
                         spacing: Theme.design === "pills" ? 4 : 0
 
                         BarText {
                             text: "menu"
-                            visible: Theme.showMenu
+                            visible: Theme.showMenu === "left"
                             color: root.settingsOpen ? Theme.purple : Theme.subtext
                             MouseArea {
                                 anchors.fill: parent
@@ -230,16 +273,30 @@ ShellRoot {
                                 onClicked: root.settingsOpen = !root.settingsOpen
                             }
                         }
-                        Separator { visible: Theme.showMenu && Theme.showClock && Theme.design !== "pills" }
-                        ClockModule { visible: Theme.showClock; screen: modelData }
-                        Separator { visible: Theme.showBattery && Theme.design !== "pills" }
-                        BatteryModule { visible: Theme.showBattery; screen: modelData }
-                        Separator { visible: Theme.showCpu && Theme.design !== "pills" }
-                        CpuModule { visible: Theme.showCpu; screen: modelData }
-                        Separator { visible: Theme.showMemory && Theme.design !== "pills" }
-                        MemoryModule { visible: Theme.showMemory; screen: modelData }
-                        Separator { visible: Theme.showGpu && Theme.design !== "pills" }
-                        GpuModule { visible: Theme.showGpu; screen: modelData }
+                        Separator { visible: Theme.showClock      === "left" && barStrip._bL1  && Theme.design !== "pills" }
+                        ClockModule { visible: Theme.showClock === "left"; screen: modelData }
+                        Separator { visible: Theme.showBattery  === "left" && barStrip._bL2  && Theme.design !== "pills" }
+                        BatteryModule { visible: Theme.showBattery === "left"; screen: modelData }
+                        Separator { visible: Theme.showCpu      === "left" && barStrip._bL3  && Theme.design !== "pills" }
+                        CpuModule { visible: Theme.showCpu === "left"; screen: modelData }
+                        Separator { visible: Theme.showMemory   === "left" && barStrip._bL4  && Theme.design !== "pills" }
+                        MemoryModule { visible: Theme.showMemory === "left"; screen: modelData }
+                        Separator { visible: Theme.showGpu      === "left" && barStrip._bL5  && Theme.design !== "pills" }
+                        GpuModule { visible: Theme.showGpu === "left"; screen: modelData }
+                        Separator { visible: Theme.showWorkspaces === "left" && barStrip._bL6 && Theme.design !== "pills" }
+                        WorkspacesModule { monitor: hyprMonitor; screen: modelData; visible: Theme.showWorkspaces === "left" }
+                        Separator { visible: musicModL.visible  && barStrip._bL7  && Theme.design !== "pills" }
+                        MusicModule { id: musicModL; targetRow: "left"; screen: modelData }
+                        Separator { visible: Theme.showAudio    === "left" && barStrip._bL8  && Theme.design !== "pills" }
+                        AudioModule { visible: Theme.showAudio === "left"; screen: modelData }
+                        Separator { visible: Theme.showBluetooth === "left" && barStrip._bL9 && Theme.design !== "pills" }
+                        BluetoothModule { visible: Theme.showBluetooth === "left"; screen: modelData }
+                        Separator { visible: Theme.showNetwork  === "left" && barStrip._bL10 && Theme.design !== "pills" }
+                        NetworkModule { visible: Theme.showNetwork === "left"; screen: modelData }
+                        Separator { visible: Theme.showInhibit  === "left" && barStrip._bL11 && Theme.design !== "pills" }
+                        InhibitModule { visible: Theme.showInhibit === "left"; screen: modelData }
+                        Separator { visible: trayModL.visible   && barStrip._bL12 && Theme.design !== "pills" }
+                        TrayModule { id: trayModL; targetRow: "left" }
                     }
 
                     // ── Center island / pill background ────────────────
@@ -261,11 +318,44 @@ ShellRoot {
                             horizontalCenter: parent.horizontalCenter
                             verticalCenter: parent.verticalCenter
                         }
-                        spacing: 0
+                        spacing: Theme.design === "pills" ? 4 : 0
                         opacity: barStrip.notifActive || barStrip.clipboardActive ? 0.0 : 1.0
                         Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.InOutQuad } }
 
-                        WorkspacesModule { monitor: hyprMonitor; screen: modelData; visible: Theme.showWorkspaces }
+                        BarText {
+                            text: "menu"
+                            visible: Theme.showMenu === "center"
+                            color: root.settingsOpen ? Theme.purple : Theme.subtext
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.settingsOpen = !root.settingsOpen
+                            }
+                        }
+                        Separator { visible: Theme.showClock      === "center" && barStrip._bC1  && Theme.design !== "pills" }
+                        ClockModule { visible: Theme.showClock === "center"; screen: modelData }
+                        Separator { visible: Theme.showBattery  === "center" && barStrip._bC2  && Theme.design !== "pills" }
+                        BatteryModule { visible: Theme.showBattery === "center"; screen: modelData }
+                        Separator { visible: Theme.showCpu      === "center" && barStrip._bC3  && Theme.design !== "pills" }
+                        CpuModule { visible: Theme.showCpu === "center"; screen: modelData }
+                        Separator { visible: Theme.showMemory   === "center" && barStrip._bC4  && Theme.design !== "pills" }
+                        MemoryModule { visible: Theme.showMemory === "center"; screen: modelData }
+                        Separator { visible: Theme.showGpu      === "center" && barStrip._bC5  && Theme.design !== "pills" }
+                        GpuModule { visible: Theme.showGpu === "center"; screen: modelData }
+                        Separator { visible: Theme.showWorkspaces === "center" && barStrip._bC6 && Theme.design !== "pills" }
+                        WorkspacesModule { monitor: hyprMonitor; screen: modelData; visible: Theme.showWorkspaces === "center" }
+                        Separator { visible: musicModC.visible  && barStrip._bC7  && Theme.design !== "pills" }
+                        MusicModule { id: musicModC; targetRow: "center"; screen: modelData }
+                        Separator { visible: Theme.showAudio    === "center" && barStrip._bC8  && Theme.design !== "pills" }
+                        AudioModule { visible: Theme.showAudio === "center"; screen: modelData }
+                        Separator { visible: Theme.showBluetooth === "center" && barStrip._bC9 && Theme.design !== "pills" }
+                        BluetoothModule { visible: Theme.showBluetooth === "center"; screen: modelData }
+                        Separator { visible: Theme.showNetwork  === "center" && barStrip._bC10 && Theme.design !== "pills" }
+                        NetworkModule { visible: Theme.showNetwork === "center"; screen: modelData }
+                        Separator { visible: Theme.showInhibit  === "center" && barStrip._bC11 && Theme.design !== "pills" }
+                        InhibitModule { visible: Theme.showInhibit === "center"; screen: modelData }
+                        Separator { visible: trayModC.visible   && barStrip._bC12 && Theme.design !== "pills" }
+                        TrayModule { id: trayModC; targetRow: "center" }
                     }
 
                     // ── In-bar notification display ────────────────────
@@ -363,17 +453,40 @@ ShellRoot {
                         }
                         spacing: Theme.design === "pills" ? 4 : 0
 
-                        MusicModule { id: musicMod; screen: modelData }
-                        Separator { visible: musicMod.visible && Theme.showAudio && Theme.design !== "pills" }
-                        AudioModule { visible: Theme.showAudio; screen: modelData }
-                        Separator { visible: Theme.showBluetooth && Theme.design !== "pills" }
-                        BluetoothModule { visible: Theme.showBluetooth; screen: modelData }
-                        Separator { visible: Theme.showNetwork && Theme.design !== "pills" }
-                        NetworkModule { visible: Theme.showNetwork; screen: modelData }
-                        Separator { visible: Theme.showInhibit && Theme.design !== "pills" }
-                        InhibitModule { visible: Theme.showInhibit; screen: modelData }
-                        Separator { visible: trayMod.visible && Theme.design !== "pills" }
-                        TrayModule { id: trayMod }
+                        BarText {
+                            text: "menu"
+                            visible: Theme.showMenu === "right"
+                            color: root.settingsOpen ? Theme.purple : Theme.subtext
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.settingsOpen = !root.settingsOpen
+                            }
+                        }
+                        Separator { visible: Theme.showClock      === "right" && barStrip._bR1  && Theme.design !== "pills" }
+                        ClockModule { visible: Theme.showClock === "right"; screen: modelData }
+                        Separator { visible: Theme.showBattery  === "right" && barStrip._bR2  && Theme.design !== "pills" }
+                        BatteryModule { visible: Theme.showBattery === "right"; screen: modelData }
+                        Separator { visible: Theme.showCpu      === "right" && barStrip._bR3  && Theme.design !== "pills" }
+                        CpuModule { visible: Theme.showCpu === "right"; screen: modelData }
+                        Separator { visible: Theme.showMemory   === "right" && barStrip._bR4  && Theme.design !== "pills" }
+                        MemoryModule { visible: Theme.showMemory === "right"; screen: modelData }
+                        Separator { visible: Theme.showGpu      === "right" && barStrip._bR5  && Theme.design !== "pills" }
+                        GpuModule { visible: Theme.showGpu === "right"; screen: modelData }
+                        Separator { visible: Theme.showWorkspaces === "right" && barStrip._bR6 && Theme.design !== "pills" }
+                        WorkspacesModule { monitor: hyprMonitor; screen: modelData; visible: Theme.showWorkspaces === "right" }
+                        Separator { visible: musicModR.visible  && barStrip._bR7  && Theme.design !== "pills" }
+                        MusicModule { id: musicModR; targetRow: "right"; screen: modelData }
+                        Separator { visible: Theme.showAudio    === "right" && barStrip._bR8  && Theme.design !== "pills" }
+                        AudioModule { visible: Theme.showAudio === "right"; screen: modelData }
+                        Separator { visible: Theme.showBluetooth === "right" && barStrip._bR9 && Theme.design !== "pills" }
+                        BluetoothModule { visible: Theme.showBluetooth === "right"; screen: modelData }
+                        Separator { visible: Theme.showNetwork  === "right" && barStrip._bR10 && Theme.design !== "pills" }
+                        NetworkModule { visible: Theme.showNetwork === "right"; screen: modelData }
+                        Separator { visible: Theme.showInhibit  === "right" && barStrip._bR11 && Theme.design !== "pills" }
+                        InhibitModule { visible: Theme.showInhibit === "right"; screen: modelData }
+                        Separator { visible: trayModR.visible   && barStrip._bR12 && Theme.design !== "pills" }
+                        TrayModule { id: trayModR; targetRow: "right" }
                     }
                 }
 
