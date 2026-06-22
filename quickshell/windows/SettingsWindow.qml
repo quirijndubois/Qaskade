@@ -327,6 +327,16 @@ FloatingWindow {
         { id: "clipboard",     label: "clipboard",     icon: "" },
         { id: "notifications", label: "notifications", icon: "" },
         { id: "system",        label: "system",        icon: "" },
+        { id: "power",         label: "power",         icon: "⏻" },
+    ]
+
+    readonly property var powerItems: [
+        { id: "lock",      label: "lock",      icon: "",  color: "blue",   cmd: ["loginctl", "lock-session"] },
+        { id: "suspend",   label: "suspend",   icon: "",  color: "teal",   cmd: ["systemctl", "suspend"] },
+        { id: "hibernate", label: "hibernate", icon: "󰤄",  color: "purple", cmd: ["systemctl", "hibernate"] },
+        { id: "logout",    label: "log out",   icon: "",  color: "yellow", cmd: ["hyprctl", "dispatch", "exit"] },
+        { id: "reboot",    label: "reboot",    icon: "",  color: "yellow", cmd: ["systemctl", "reboot"] },
+        { id: "shutdown",  label: "shut down", icon: "⏻",  color: "red",    cmd: ["systemctl", "poweroff"] },
     ]
 
     readonly property var appearanceItems: [
@@ -920,6 +930,20 @@ FloatingWindow {
         onTriggered: Notifications.clearAll()
     }
 
+    Process {
+        id: powerProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+    }
+
+    function runPowerAction(item) {
+        root.closeRequested()
+        powerProc.command = item.cmd
+        powerProc.running = false
+        // Small delay so the settings window closes before the action fires
+        Qt.callLater(() => { powerProc.running = true })
+    }
+
     function clearNotificationsAnimated() {
         const count = notifListView.count
         if (count === 0) return
@@ -1193,6 +1217,8 @@ FloatingWindow {
                         sysListView.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "lockscreen")
                         lockscreenList.positionViewAtIndex(upScroll, ListView.Contain)
+                    else if (root.page === "power")
+                        powerListView.positionViewAtIndex(upScroll, ListView.Contain)
                 }
                 event.accepted = true
                 return
@@ -1220,6 +1246,7 @@ FloatingWindow {
                              : root.page === "notifications"  ? Math.max(0, notifListView.count - 1)
                              : root.page === "system"         ? Math.max(0, root.systemSettingItems.length - 1)
                              : root.page === "lockscreen"     ? root.lockscreenOptions.length - 1
+                             : root.page === "power"          ? root.powerItems.length - 1
                              : 0
                 if (inSearch) {
                     if (root.selectedSearchIndex < root.searchResults.length - 1) {
@@ -1270,6 +1297,8 @@ FloatingWindow {
                         sysListView.positionViewAtIndex(Math.min(downScroll, root.systemSettingItems.length - 1), ListView.Contain)
                     else if (root.page === "lockscreen")
                         lockscreenList.positionViewAtIndex(downScroll, ListView.Contain)
+                    else if (root.page === "power")
+                        powerListView.positionViewAtIndex(downScroll, ListView.Contain)
                 }
                 event.accepted = true
                 return
@@ -1484,6 +1513,9 @@ FloatingWindow {
             } else if (root.page === "notifications") {
                 const ni = notifListView.itemAtIndex(root.selectedIndex)
                 if (ni) ni.dismiss()
+            } else if (root.page === "power") {
+                const item = root.powerItems[root.selectedIndex]
+                if (item) root.runPowerAction(item)
             } else if (root.page === "system") {
                 const item = root.systemSettingItems[root.selectedIndex]
                 if (!item || item.type === "section") return
@@ -2816,6 +2848,107 @@ FloatingWindow {
                     }
                 }
             }
+            }
+
+            // ── Power ─────────────────────────────────────────
+            Item {
+                anchors.fill: parent
+                visible: root.activeSubPage === "power"
+
+                Rectangle {
+                    id: powerHeader
+                    width: parent.width
+                    height: 44
+                    color: Theme.surface
+
+                    Row {
+                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                        spacing: 14
+
+                        Text {
+                            text: "< back"
+                            color: Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 1
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            text: "power"
+                            color: Theme.red
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf + 1
+                            font.bold: true
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+
+                Rectangle { id: powerDivider; anchors.top: powerHeader.bottom; width: parent.width; height: 1; color: Theme.border }
+
+                ListView {
+                    id: powerListView
+                    anchors { left: parent.left; right: parent.right; top: powerDivider.bottom; bottom: parent.bottom }
+                    model: root.powerItems
+                    clip: true
+                    interactive: false
+
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+
+                        width: powerListView.width
+                        height: 56
+                        color: root.selectedIndex === index ? Theme.border : "transparent"
+
+                        property color accentColor: modelData.color === "red"    ? Theme.red
+                                                  : modelData.color === "yellow" ? Theme.yellow
+                                                  : modelData.color === "teal"   ? Theme.teal
+                                                  : modelData.color === "purple" ? Theme.purple
+                                                  : Theme.blue
+
+                        Row {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            spacing: 16
+
+                            Text {
+                                text: root.selectedIndex === index ? ">" : " "
+                                color: Theme.blue
+                                font.family: "JetBrains Mono"
+                                font.pixelSize: sf
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            Text {
+                                text: modelData.icon
+                                color: parent.parent.accentColor
+                                font.family: "Symbols Nerd Font Mono"
+                                font.pixelSize: 18
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            Text {
+                                text: modelData.label
+                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
+                                font.family: "JetBrains Mono"
+                                font.pixelSize: sf
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width; height: 1
+                            color: Theme.border; opacity: 0.3
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { root.selectedIndex = index; root.runPowerAction(modelData) }
+                        }
+                    }
+                }
             }
 
             // ── Level-2 container (appearance sub-pages) ─────────────────

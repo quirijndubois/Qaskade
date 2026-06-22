@@ -38,6 +38,7 @@ Item {
                 property string passwordInput: ""
                 property bool   authFailed:    false
                 property bool   authRunning:   false
+                property bool   powerMenuOpen: false
                 property string timeStr: Qt.formatTime(new Date(), "hh:mm")
                 property string dateStr: Qt.formatDate(new Date(), "dddd, MMMM d")
 
@@ -71,6 +72,12 @@ Item {
                     id: pulseAnim
                     NumberAnimation { target: surface; property: "pwBoxScale"; to: 1.045; duration: 60;  easing.type: Easing.OutCubic }
                     NumberAnimation { target: surface; property: "pwBoxScale"; to: 1.0;   duration: 140; easing.type: Easing.OutBack; easing.overshoot: 1.8 }
+                }
+
+                Process {
+                    id: lockPowerProc
+                    stdout: StdioCollector {}
+                    stderr: StdioCollector {}
                 }
 
                 Process {
@@ -467,6 +474,73 @@ Item {
                                         text: "incorrect password"; color: Theme.red
                                         font.family: "JetBrains Mono"; font.pixelSize: 12
                                     }
+                                }
+                            }
+                        }
+
+                        // ── power overlay ───────────────────────────────────────────
+                        Item {
+                            anchors { bottom: parent.bottom; right: parent.right; bottomMargin: 24; rightMargin: 24 }
+                            width: 32; height: 32
+
+                            Row {
+                                anchors { right: parent.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                spacing: 8
+                                opacity: surface.powerMenuOpen ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+                                Repeater {
+                                    model: [
+                                        { label: "suspend",   icon: "", col: Theme.teal,   cmd: ["systemctl", "suspend"]   },
+                                        { label: "hibernate", icon: "󰤄", col: Theme.purple, cmd: ["systemctl", "hibernate"] },
+                                        { label: "reboot",    icon: "", col: Theme.yellow, cmd: ["systemctl", "reboot"]    },
+                                        { label: "shut down", icon: "⏻", col: Theme.red,    cmd: ["systemctl", "poweroff"]  },
+                                    ]
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        width: 32; height: 32; radius: 16
+                                        color: Theme.surface; border.width: 1; border.color: Theme.border
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.icon
+                                            color: modelData.col
+                                            font.family: "Symbols Nerd Font Mono"; font.pixelSize: 14
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                surface.powerMenuOpen = false
+                                                lockPowerProc.command = modelData.cmd
+                                                lockPowerProc.running = false
+                                                Qt.callLater(() => { lockPowerProc.running = true })
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent; radius: 16
+                                color: surface.powerMenuOpen ? Theme.red : Theme.surface
+                                border.width: 1
+                                border.color: surface.powerMenuOpen ? Theme.red : Theme.border
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "⏻"
+                                    color: surface.powerMenuOpen ? Theme.base : Theme.subtext
+                                    font.family: "Symbols Nerd Font Mono"; font.pixelSize: 14
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: surface.powerMenuOpen = !surface.powerMenuOpen
                                 }
                             }
                         }

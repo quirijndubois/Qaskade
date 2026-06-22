@@ -37,6 +37,8 @@ Item {
                     root.highlightX = row.x + x
                 }
 
+                onXChanged:        { if (isFocused && visible) updateHighlightPosition() }
+                onVisibleChanged:  { if (visible && isFocused) updateHighlightPosition() }
                 onIsFocusedChanged: {
                     if (isFocused && visible) {
                         Qt.callLater(() => updateHighlightPosition())
