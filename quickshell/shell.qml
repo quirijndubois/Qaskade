@@ -55,10 +55,18 @@ ShellRoot {
         function setCustom() { Theme.loadCustomPalette() }
     }
 
+    IpcHandler {
+        target: "osd"
+
+        function brightness(pct) { OsdState.showBrightness(parseInt(pct)) }
+    }
+
     LockScreen {
         id: lockScreen
         onLockReleased: root.sessionLocked = false
     }
+
+    OsdWindow {}
 
     Process {
         command: ["sh", "-c", "pgrep -x awww-daemon > /dev/null || awww-daemon"]

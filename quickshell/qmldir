@@ -1,4 +1,5 @@
 singleton BarHover 1.0 BarHover.qml
 singleton InhibitState 1.0 InhibitState.qml
 singleton Notifications 1.0 Notifications.qml
+singleton OsdState 1.0 OsdState.qml
 singleton Theme 1.0 Theme.qml

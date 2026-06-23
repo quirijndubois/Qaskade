@@ -293,8 +293,16 @@ hl.bind(
 	hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
 	{ locked = true, repeating = true }
 )
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl s 10%+"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl s 10%-"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd(
+    "brightnessctl s 10%+ && " ..
+    "v=$(brightnessctl g) && m=$(brightnessctl max) && " ..
+    "quickshell ipc -c default call osd brightness $((v * 100 / m))"
+), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(
+    "brightnessctl s 10%- && " ..
+    "v=$(brightnessctl g) && m=$(brightnessctl max) && " ..
+    "quickshell ipc -c default call osd brightness $((v * 100 / m))"
+), { locked = true, repeating = true })
 
 -- Requires playerctl
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
