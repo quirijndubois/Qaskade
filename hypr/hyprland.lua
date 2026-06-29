@@ -99,28 +99,53 @@ hl.config({
 	},
 })
 
-hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
-hl.curve("easeInOutCubic", { type = "bezier", points = { { 0.65, 0.05 }, { 0.36, 1 } } })
-hl.curve("linear", { type = "bezier", points = { { 0, 0 }, { 1, 1 } } })
-hl.curve("almostLinear", { type = "bezier", points = { { 0.5, 0.5 }, { 0.75, 1 } } })
-hl.curve("quick", { type = "bezier", points = { { 0.15, 0 }, { 0.1, 1 } } })
+-- Material Design 3 motion curves (material.io/design/motion)
+-- Emphasized: expressive entrance/exit for containers and prominent elements
+-- Standard:   functional transitions for less prominent UI changes
+hl.curve("mdEmphasizedDecel", { type = "bezier", points = { { 0.05, 0.7 }, { 0.1, 1.0 } } }) -- cubic-bezier(0.05, 0.70, 0.10, 1.00)
+hl.curve("mdEmphasizedAccel", { type = "bezier", points = { { 0.3, 0.0 }, { 0.8, 0.15 } } }) -- cubic-bezier(0.30, 0.00, 0.80, 0.15)
+hl.curve("mdStandard", { type = "bezier", points = { { 0.2, 0.0 }, { 0.0, 1.0 } } }) -- cubic-bezier(0.20, 0.00, 0.00, 1.00)
+hl.curve("mdStandardDecel", { type = "bezier", points = { { 0.0, 0.0 }, { 0.0, 1.0 } } }) -- cubic-bezier(0.00, 0.00, 0.00, 1.00)
+hl.curve("mdStandardAccel", { type = "bezier", points = { { 0.3, 0.0 }, { 1.0, 1.0 } } }) -- cubic-bezier(0.30, 0.00, 1.00, 1.00)
 
 hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = "default" })
-hl.animation({ leaf = "border", enabled = true, speed = 5.39, bezier = "easeOutQuint" })
-hl.animation({ leaf = "windows", enabled = true, speed = 4.79, bezier = "easeOutQuint" })
-hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, bezier = "easeOutQuint", style = "popin 87%" })
-hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = "linear", style = "popin 87%" })
-hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.73, bezier = "almostLinear" })
-hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.46, bezier = "almostLinear" })
-hl.animation({ leaf = "fade", enabled = true, speed = 3.03, bezier = "quick" })
-hl.animation({ leaf = "layers", enabled = true, speed = 3.81, bezier = "easeOutQuint" })
-hl.animation({ leaf = "layersIn", enabled = true, speed = 4, bezier = "easeOutQuint", style = "fade" })
-hl.animation({ leaf = "layersOut", enabled = true, speed = 1.5, bezier = "linear", style = "fade" })
-hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 1.79, bezier = "almostLinear" })
-hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.39, bezier = "almostLinear" })
-hl.animation({ leaf = "workspaces", enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
-hl.animation({ leaf = "workspacesIn", enabled = true, speed = 1.21, bezier = "almostLinear", style = "fade" })
-hl.animation({ leaf = "workspacesOut", enabled = true, speed = 1.94, bezier = "almostLinear", style = "fade" })
+hl.animation({ leaf = "border", enabled = true, speed = 4.0, bezier = "mdStandard" })
+
+hl.animation({ leaf = "windows", enabled = true, speed = 4.0, bezier = "mdEmphasizedDecel" })
+hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.5, bezier = "mdEmphasizedDecel", style = "slide" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 3.0, bezier = "mdEmphasizedAccel", style = "slide" })
+
+hl.animation({ leaf = "fadeIn", enabled = true, speed = 3.0, bezier = "mdStandardDecel" })
+hl.animation({ leaf = "fadeOut", enabled = true, speed = 2.5, bezier = "mdStandardAccel" })
+hl.animation({ leaf = "fade", enabled = true, speed = 3.5, bezier = "mdStandard" })
+
+hl.animation({ leaf = "layers", enabled = true, speed = 4.0, bezier = "mdEmphasizedDecel" })
+hl.animation({ leaf = "layersIn", enabled = true, speed = 4.0, bezier = "mdEmphasizedDecel", style = "fade" })
+hl.animation({ leaf = "layersOut", enabled = true, speed = 2.5, bezier = "mdEmphasizedAccel", style = "fade" })
+hl.animation({ leaf = "fadeLayersIn", enabled = true, speed = 3.0, bezier = "mdStandardDecel" })
+hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 2.5, bezier = "mdStandardAccel" })
+
+hl.animation({
+	leaf = "workspaces",
+	enabled = true,
+	speed = 2.0,
+	bezier = "mdStandard",
+	style = "slidefade",
+})
+hl.animation({
+	leaf = "workspacesIn",
+	enabled = true,
+	speed = 2.0,
+	bezier = "mdStandard",
+	style = "slidefade",
+})
+hl.animation({
+	leaf = "workspacesOut",
+	enabled = true,
+	speed = 2.0,
+	bezier = "mdStandard",
+	style = "slidefade",
+})
 
 -------------------
 ---- LAYOUTS ----
@@ -223,7 +248,7 @@ hl.bind(mainMod .. " + C", hl.dsp.exec_cmd("hyprpicker -a"))
 hl.bind(mainMod .. " + SHIFT + C", hl.dsp.exec_cmd("hyprshot -m region"))
 hl.bind(mainMod .. " + S", hl.dsp.exec_cmd("quickshell ipc -c default call settings toggle"))
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("quickshell ipc -c default call statusbar toggle"))
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("sh \"$HOME/.config/quickshell/scripts/random-wallpaper.sh\""))
+hl.bind(mainMod .. " + R", hl.dsp.exec_cmd('sh "$HOME/.config/quickshell/scripts/random-wallpaper.sh"'))
 
 -- Move focus with arrow keys and vim keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
@@ -293,16 +318,24 @@ hl.bind(
 	hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
 	{ locked = true, repeating = true }
 )
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd(
-    "brightnessctl s 10%+ && " ..
-    "v=$(brightnessctl g) && m=$(brightnessctl max) && " ..
-    "quickshell ipc -c default call osd brightness $((v * 100 / m))"
-), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(
-    "brightnessctl s 10%- && " ..
-    "v=$(brightnessctl g) && m=$(brightnessctl max) && " ..
-    "quickshell ipc -c default call osd brightness $((v * 100 / m))"
-), { locked = true, repeating = true })
+hl.bind(
+	"XF86MonBrightnessUp",
+	hl.dsp.exec_cmd(
+		"brightnessctl s 10%+ && "
+			.. "v=$(brightnessctl g) && m=$(brightnessctl max) && "
+			.. "quickshell ipc -c default call osd brightness $((v * 100 / m))"
+	),
+	{ locked = true, repeating = true }
+)
+hl.bind(
+	"XF86MonBrightnessDown",
+	hl.dsp.exec_cmd(
+		"brightnessctl s 10%- && "
+			.. "v=$(brightnessctl g) && m=$(brightnessctl max) && "
+			.. "quickshell ipc -c default call osd brightness $((v * 100 / m))"
+	),
+	{ locked = true, repeating = true }
+)
 
 -- Requires playerctl
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { locked = true })
