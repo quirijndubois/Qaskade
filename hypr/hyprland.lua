@@ -111,9 +111,9 @@ hl.curve("mdStandardAccel", { type = "bezier", points = { { 0.3, 0.0 }, { 1.0, 1
 hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = "default" })
 hl.animation({ leaf = "border", enabled = true, speed = 4.0, bezier = "mdStandard" })
 
-hl.animation({ leaf = "windows", enabled = true, speed = 4.0, bezier = "mdEmphasizedDecel" })
-hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.5, bezier = "mdEmphasizedDecel", style = "slide" })
-hl.animation({ leaf = "windowsOut", enabled = true, speed = 3.0, bezier = "mdEmphasizedAccel", style = "slide" })
+hl.animation({ leaf = "windows", enabled = true, speed = 2.0, bezier = "mdStandard" })
+hl.animation({ leaf = "windowsIn", enabled = true, speed = 2.0, bezier = "mdStandard", style = "slide" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 2.0, bezier = "mdStandard", style = "slide" })
 
 hl.animation({ leaf = "fadeIn", enabled = true, speed = 3.0, bezier = "mdStandardDecel" })
 hl.animation({ leaf = "fadeOut", enabled = true, speed = 2.5, bezier = "mdStandardAccel" })
@@ -130,21 +130,21 @@ hl.animation({
 	enabled = true,
 	speed = 2.0,
 	bezier = "mdStandard",
-	style = "slidefade",
+	style = "slidevert",
 })
 hl.animation({
 	leaf = "workspacesIn",
 	enabled = true,
 	speed = 2.0,
 	bezier = "mdStandard",
-	style = "slidefade",
+	style = "slidevert",
 })
 hl.animation({
 	leaf = "workspacesOut",
 	enabled = true,
 	speed = 2.0,
 	bezier = "mdStandard",
-	style = "slidefade",
+	style = "slidevert",
 })
 
 -------------------
