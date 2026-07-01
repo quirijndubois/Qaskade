@@ -4,10 +4,24 @@ import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../"
 
-BarText {
+Item {
     id: root
-    color: Theme.yellow
 
+    // ── BarText-compatible interface ──────────────────────────────
+    property string moduleId: "audio"
+    property Component modulePopup: popup
+    property real popupHeight: computePopupH()
+    property var screen: null
+
+    implicitWidth: innerRow.implicitWidth + (Theme.design === "pills" ? 20 : 0)
+    implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : innerRow.implicitHeight
+
+    onPopupHeightChanged: {
+        if (BarHover.activeModule === moduleId)
+            BarHover.popupH = popupHeight
+    }
+
+    // ── Sink data ─────────────────────────────────────────────────
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
 
     property var sink: Pipewire.defaultAudioSink
@@ -55,15 +69,118 @@ BarText {
         return appStreams.length > 0 ? 277 : 117
     }
 
-    text: {
-        if (!sink || !sink.audio) return "vol --%"
-        const vol = Math.round(sink.audio.volume * 100)
-        return sink.audio.muted ? "vol mute" : "vol " + vol + "%"
+    // ── Live peak for bar widget ──────────────────────────────────
+    PwNodePeakMonitor {
+        id: barPeakMon
+        node: root.sink
+        enabled: root.sink !== null
     }
 
-    moduleId: "audio"
-    modulePopup: popup
-    popupHeight: computePopupH()
+    property real barPeakLevel: {
+        const p = barPeakMon.peaks
+        if (!p || p.length === 0) return 0
+        let m = 0
+        for (let i = 0; i < p.length; i++) if (p[i] > m) m = p[i]
+        if (m < 1e-5) return 0
+        const db = 20 * Math.log10(Math.min(1.0, m))
+        return Math.max(0, Math.min(1, (db + 6) / 6))
+    }
+
+    property bool   isMuted: sink && sink.audio && sink.audio.muted
+    property real   volLevel: sink && sink.audio ? sink.audio.volume : 0
+    property color  accent: Theme.yellow
+
+    property string volIcon: {
+        if (!sink || !sink.audio || sink.audio.muted) return String.fromCodePoint(0xF075F)
+        const v = sink.audio.volume
+        if (v < 0.33) return String.fromCodePoint(0xF057F)
+        if (v < 0.66) return String.fromCodePoint(0xF0580)
+        return String.fromCodePoint(0xF057E)
+    }
+
+    // ── Visual layers ─────────────────────────────────────────────
+    Rectangle {
+        id: pillsBg
+        visible: Theme.design === "pills"
+        anchors.centerIn: parent
+        width: innerRow.implicitWidth + 20
+        height: root.implicitHeight
+        radius: height / 2
+        color: Theme.surface
+        border.color: Theme.border
+        border.width: 1
+    }
+
+    Row {
+        id: innerRow
+        anchors.centerIn: parent
+        spacing: 6
+
+        // Speaker icon + bars as one combined visual unit
+        Item {
+            id: speakerUnit
+            height: Theme.barFontSize
+            width: iconLabel.implicitWidth + 3 + eqBars.width
+            anchors.verticalCenter: parent.verticalCenter
+
+            Text {
+                id: iconLabel
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                text: root.volIcon
+                color: root.isMuted ? Theme.subtext : root.accent
+                font.family: "Symbols Nerd Font Mono"
+                font.pixelSize: Theme.barFontSize
+            }
+
+            // Bars grow from vertical center of icon — look like sound wave arcs
+            Item {
+                id: eqBars
+                anchors { left: iconLabel.right; leftMargin: 3; verticalCenter: parent.verticalCenter }
+                width: 10   // 3 bars × 2px + 2 gaps × 2px + last bar = 10
+                height: Theme.barHeight - 6
+
+                Repeater {
+                    model: [
+                        { frac: 0.38, dur: 80  },
+                        { frac: 0.65, dur: 170 },
+                        { frac: 1.00, dur: 300 }
+                    ]
+                    Item {
+                        required property var modelData
+                        required property int index
+
+                        x: index * 4
+                        width: 2
+                        height: parent.height
+
+                        Rectangle {
+                            property real level: root.isMuted ? 0 : Math.min(1.0, root.barPeakLevel * root.volLevel) * modelData.frac
+                            anchors { verticalCenter: parent.verticalCenter; horizontalCenter: parent.horizontalCenter }
+                            width: 2
+                            height: Math.max(2, parent.height * level)
+                            radius: 1
+                            color: root.barPeakLevel > 0.9 && !root.isMuted ? Theme.red : (root.isMuted ? Theme.subtext : root.accent)
+                            Behavior on height { NumberAnimation { duration: modelData.dur; easing.type: Easing.OutCubic } }
+                        }
+                    }
+                }
+            }
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: {
+                if (!root.sink || !root.sink.audio) return "--%"
+                if (root.sink.audio.muted) return "mute"
+                return Math.round(root.sink.audio.volume * 100) + "%"
+            }
+            color: root.isMuted ? Theme.subtext : root.accent
+            font.family: Theme.barFontFamily
+            font.pixelSize: Theme.barFontSize
+            font.bold: Theme.barFontBold
+            renderType: Text.NativeRendering
+        }
+    }
 
     MouseArea {
         anchors.fill: parent
@@ -71,11 +188,23 @@ BarText {
         onClicked: pavuProc.running = true
     }
 
+    HoverHandler {
+        onHoveredChanged: {
+            if (hovered)
+                BarHover.show(root.moduleId, root.modulePopup,
+                              root.mapToItem(null, root.width / 2, 0).x,
+                              root.popupHeight, root.screen)
+            else
+                BarHover.startHide()
+        }
+    }
+
     Process {
         id: pavuProc
         command: ["pavucontrol"]
     }
 
+    // ── Popup ─────────────────────────────────────────────────────
     Component {
         id: popup
         Column {
