@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Wayland
 import QtQuick
 import "../"
 
@@ -10,6 +11,8 @@ Item {
                 id: osdPanel
                 required property var modelData
                 screen: modelData
+
+                WlrLayershell.layer: WlrLayer.Overlay
 
                 anchors { bottom: true; left: true; right: true }
                 exclusiveZone: 0

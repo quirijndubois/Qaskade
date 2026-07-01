@@ -52,7 +52,7 @@ BarText {
     }
 
     function computePopupH() {
-        return appStreams.length > 0 ? 264 : 104
+        return appStreams.length > 0 ? 277 : 117
     }
 
     text: {
@@ -81,6 +81,22 @@ BarText {
         Column {
             anchors { left: parent.left; right: parent.right; top: parent.top }
             spacing: 10
+
+            PwNodePeakMonitor {
+                id: sinkPeakMon
+                node: root.sink
+                enabled: BarHover.activeModule === "audio"
+            }
+
+            property real sinkPeakLevel: {
+                const p = sinkPeakMon.peaks
+                if (!p || p.length === 0) return 0
+                let m = 0
+                for (let i = 0; i < p.length; i++) if (p[i] > m) m = p[i]
+                if (m < 1e-5) return 0
+                const db = 20 * Math.log10(Math.min(1.0, m))
+                return Math.max(0, Math.min(1, (db + 6) / 6))
+            }
 
             Row {
                 spacing: 8
@@ -152,6 +168,18 @@ BarText {
                 }
             }
 
+            Rectangle {
+                width: parent.width; height: 3; radius: 1
+                color: Theme.border
+
+                Rectangle {
+                    width: parent.width * parent.parent.sinkPeakLevel
+                    height: parent.height; radius: parent.radius
+                    color: parent.parent.sinkPeakLevel > 0.85 ? Theme.red : Theme.yellow
+                    Behavior on width { NumberAnimation { duration: 60 } }
+                }
+            }
+
             Text {
                 text: root.sink ? (root.sink.description || root.sink.name || "") : ""
                 color: Theme.subtext
@@ -210,7 +238,11 @@ BarText {
                                 if (!p || p.length === 0) return 0
                                 let m = 0
                                 for (let i = 0; i < p.length; i++) if (p[i] > m) m = p[i]
-                                return Math.min(1.0, m)
+                                const vol = modelData.audio ? modelData.audio.volume : 1.0
+                                const v = Math.min(1.0, m * vol)
+                                if (v < 1e-5) return 0
+                                const db = 20 * Math.log10(v)
+                                return Math.max(0, Math.min(1, (db + 6) / 6))
                             }
 
                             // ── Name + vol% ──────────────────────────

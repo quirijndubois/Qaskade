@@ -11,7 +11,6 @@ ShellRoot {
     id: root
 
     property bool settingsOpen: false
-    property string requestedPage: "main"
     property bool sessionLocked: false
     property bool barVisible: true
 
@@ -20,10 +19,12 @@ ShellRoot {
     IpcHandler {
         target: "settings"
 
-        function toggle()    { root.settingsOpen = !root.settingsOpen }
-        function open()      { root.settingsOpen = true }
-        function openApps()  { root.requestedPage = "apps"; root.settingsOpen = true }
-        function close()     { root.settingsOpen = false }
+        function toggle()      { root.settingsOpen = !root.settingsOpen }
+        function open()        { root.settingsOpen = true }
+        function openApps()    { settingsWindow.navigate("apps"); root.settingsOpen = true }
+        function openSearch()  { settingsWindow.navigate("search"); root.settingsOpen = true }
+        function openEmoji()   { settingsWindow.navigate("emoji"); root.settingsOpen = true }
+        function close()       { root.settingsOpen = false }
     }
 
     IpcHandler {
@@ -81,8 +82,7 @@ ShellRoot {
     SettingsWindow {
         id: settingsWindow
         visible: root.settingsOpen
-        requestedPage: root.requestedPage
-        onCloseRequested: { root.requestedPage = "main"; root.settingsOpen = false }
+        onCloseRequested: { root.settingsOpen = false }
     }
 
     Connections {

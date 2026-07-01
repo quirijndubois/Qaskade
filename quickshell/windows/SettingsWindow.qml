@@ -53,7 +53,7 @@ FloatingWindow {
     property string page: "main"
     property string activeSubPage: "appearance"
     property var navStack: []
-    property string requestedPage: "main"
+    property string _pendingPage: "main"
     property int selectedIndex: 0
     property string searchQuery: ""
     property int selectedSearchIndex: 0
@@ -99,6 +99,7 @@ FloatingWindow {
     property int selectedMonitorIdx: 0
     property var workspaceRules: []
     property bool vimSearchMode: false
+    property bool immediateSearch: false
 
     readonly property var monitorColors: [Theme.blue, Theme.green, Theme.yellow, Theme.teal, Theme.purple, Theme.red]
 
@@ -125,7 +126,21 @@ FloatingWindow {
         return items
     }
 
+    property string _pendingSystemLabel: ""
+
+    onSystemSettingItemsChanged: {
+        if (root.page === "system" && root._pendingSystemLabel !== "") {
+            const idx = root.systemSettingItems.findIndex(s => s.label === _pendingSystemLabel)
+            if (idx >= 0) {
+                root.selectedIndex = idx
+                Qt.callLater(() => sysListView.positionViewAtIndex(idx, ListView.Contain))
+            }
+            root._pendingSystemLabel = ""
+        }
+    }
+
     onPageChanged: {
+        if (page !== "system") root._pendingSystemLabel = ""
         if (page !== "main") activeSubPage = page
         if (page === "bluetooth") btListProc.running = true
         if (page === "wifi") { root.wifiScanning = true; wifiListProc.running = true }
@@ -235,6 +250,10 @@ FloatingWindow {
             const s2 = Math.max(root.fuzzyScore(searchQuery, b.label), root.fuzzyScore(searchQuery, b.id))
             if (s2 > 0) results.push({ score: s2, type: "bar_module", label: b.label, id: b.id, page: "bar", index: root.barModules.indexOf(b) })
         }
+        for (const em of root.emojiList) {
+            const s2 = root.fuzzyScore(searchQuery, em.n)
+            if (s2 > 0) results.push({ score: s2, type: "emoji", label: em.n, e: em.e })
+        }
         results.sort((a, b) => b.score - a.score)
         if (results.length === 0 && !mathResult) results.push({ type: "web", label: searchQuery })
         if (mathResult) results.unshift({ type: "math", label: mathResult.result, expr: mathResult.expr })
@@ -326,6 +345,7 @@ FloatingWindow {
         { id: "wifi",          label: "wifi",          icon: "󰤡" },
         { id: "clipboard",     label: "clipboard",     icon: "" },
         { id: "notifications", label: "notifications", icon: "" },
+        { id: "emoji",         label: "emoji picker",  icon: "󰱫" },
         { id: "system",        label: "system",        icon: "" },
         { id: "power",         label: "power",         icon: "⏻" },
     ]
@@ -347,11 +367,311 @@ FloatingWindow {
         { id: "lockscreen", label: "lock screen",  icon: "󰌮" },
     ]
 
+
+    readonly property var emojiList: [
+        // smileys
+        { e: "😀", n: "grinning face" },
+        { e: "😃", n: "grinning face with big eyes" },
+        { e: "😄", n: "grinning face with smiling eyes" },
+        { e: "😁", n: "beaming face" },
+        { e: "😆", n: "grinning squinting face" },
+        { e: "😅", n: "grinning face with sweat" },
+        { e: "🤣", n: "rolling on floor laughing" },
+        { e: "😂", n: "face with tears of joy" },
+        { e: "🙂", n: "slightly smiling face" },
+        { e: "😉", n: "winking face" },
+        { e: "😊", n: "smiling face with smiling eyes" },
+        { e: "😇", n: "smiling face with halo" },
+        { e: "🥰", n: "smiling face with hearts" },
+        { e: "😍", n: "heart eyes" },
+        { e: "🤩", n: "star struck" },
+        { e: "😘", n: "face blowing a kiss" },
+        { e: "😋", n: "face savoring food" },
+        { e: "😎", n: "cool face with sunglasses" },
+        { e: "😏", n: "smirking face" },
+        { e: "😒", n: "unamused face" },
+        { e: "😔", n: "pensive face" },
+        { e: "😟", n: "worried face" },
+        { e: "🙁", n: "slightly frowning face" },
+        { e: "😢", n: "crying face" },
+        { e: "😭", n: "loudly crying face" },
+        { e: "😤", n: "face with steam from nose" },
+        { e: "😠", n: "angry face" },
+        { e: "😡", n: "enraged face" },
+        { e: "🤬", n: "face with symbols on mouth" },
+        { e: "🤯", n: "exploding head" },
+        { e: "😱", n: "face screaming in fear" },
+        { e: "😨", n: "fearful face" },
+        { e: "😰", n: "anxious face with sweat" },
+        { e: "🤔", n: "thinking face" },
+        { e: "😬", n: "grimacing face" },
+        { e: "😶", n: "face without mouth" },
+        { e: "🥱", n: "yawning face" },
+        { e: "😴", n: "sleeping face" },
+        { e: "😷", n: "face with medical mask" },
+        { e: "🤒", n: "face with thermometer" },
+        { e: "🤕", n: "face with head bandage" },
+        { e: "🤢", n: "nauseated face" },
+        { e: "🤧", n: "sneezing face" },
+        { e: "😵", n: "dizzy face" },
+        { e: "🤑", n: "money mouth face" },
+        { e: "😈", n: "smiling face with horns" },
+        { e: "💀", n: "skull" },
+        { e: "👻", n: "ghost" },
+        { e: "👽", n: "alien" },
+        { e: "🤖", n: "robot" },
+        { e: "💩", n: "pile of poo" },
+        // gestures
+        { e: "👋", n: "waving hand" },
+        { e: "✋", n: "raised hand" },
+        { e: "👌", n: "ok hand" },
+        { e: "✌️", n: "victory hand" },
+        { e: "🤞", n: "crossed fingers" },
+        { e: "👍", n: "thumbs up" },
+        { e: "👎", n: "thumbs down" },
+        { e: "✊", n: "raised fist" },
+        { e: "👊", n: "oncoming fist" },
+        { e: "👏", n: "clapping hands" },
+        { e: "🙌", n: "raising hands" },
+        { e: "🙏", n: "folded hands" },
+        { e: "💪", n: "flexed biceps" },
+        { e: "🤝", n: "handshake" },
+        { e: "🖐️", n: "hand with fingers splayed" },
+        { e: "🤙", n: "call me hand" },
+        { e: "👈", n: "pointing left" },
+        { e: "👉", n: "pointing right" },
+        { e: "👆", n: "pointing up" },
+        { e: "👇", n: "pointing down" },
+        // animals
+        { e: "🐶", n: "dog face" },
+        { e: "🐱", n: "cat face" },
+        { e: "🐭", n: "mouse face" },
+        { e: "🐹", n: "hamster" },
+        { e: "🐰", n: "rabbit face" },
+        { e: "🦊", n: "fox" },
+        { e: "🐻", n: "bear" },
+        { e: "🐼", n: "panda" },
+        { e: "🐨", n: "koala" },
+        { e: "🐯", n: "tiger face" },
+        { e: "🦁", n: "lion" },
+        { e: "🐮", n: "cow face" },
+        { e: "🐷", n: "pig face" },
+        { e: "🐸", n: "frog" },
+        { e: "🙈", n: "see no evil monkey" },
+        { e: "🙉", n: "hear no evil monkey" },
+        { e: "🙊", n: "speak no evil monkey" },
+        { e: "🐔", n: "chicken" },
+        { e: "🦆", n: "duck" },
+        { e: "🦅", n: "eagle" },
+        { e: "🦉", n: "owl" },
+        { e: "🦋", n: "butterfly" },
+        { e: "🐝", n: "honeybee" },
+        { e: "🐛", n: "caterpillar" },
+        { e: "🐌", n: "snail" },
+        { e: "🐞", n: "lady beetle" },
+        { e: "🦈", n: "shark" },
+        { e: "🐬", n: "dolphin" },
+        { e: "🐋", n: "whale" },
+        // nature
+        { e: "🌸", n: "cherry blossom" },
+        { e: "🌺", n: "hibiscus" },
+        { e: "🌻", n: "sunflower" },
+        { e: "🌹", n: "rose" },
+        { e: "🌷", n: "tulip" },
+        { e: "🍀", n: "four leaf clover" },
+        { e: "🌿", n: "herb" },
+        { e: "🍃", n: "leaf fluttering in wind" },
+        { e: "🍂", n: "fallen leaf" },
+        { e: "🍁", n: "maple leaf" },
+        { e: "🌱", n: "seedling" },
+        { e: "🌵", n: "cactus" },
+        { e: "🌴", n: "palm tree" },
+        { e: "🌳", n: "deciduous tree" },
+        { e: "🌲", n: "evergreen tree" },
+        { e: "🌊", n: "water wave" },
+        { e: "🔥", n: "fire" },
+        { e: "⭐", n: "star" },
+        { e: "🌟", n: "glowing star" },
+        { e: "✨", n: "sparkles" },
+        { e: "💫", n: "dizzy" },
+        { e: "⚡", n: "lightning" },
+        { e: "🌈", n: "rainbow" },
+        { e: "🌙", n: "crescent moon" },
+        { e: "☀️", n: "sun" },
+        { e: "⛄", n: "snowman" },
+        { e: "❄️", n: "snowflake" },
+        // food & drink
+        { e: "🍎", n: "red apple" },
+        { e: "🍊", n: "tangerine" },
+        { e: "🍋", n: "lemon" },
+        { e: "🍇", n: "grapes" },
+        { e: "🍓", n: "strawberry" },
+        { e: "🍒", n: "cherries" },
+        { e: "🍌", n: "banana" },
+        { e: "🍉", n: "watermelon" },
+        { e: "🥝", n: "kiwi fruit" },
+        { e: "🍅", n: "tomato" },
+        { e: "🥑", n: "avocado" },
+        { e: "🌽", n: "ear of corn" },
+        { e: "🥦", n: "broccoli" },
+        { e: "🥕", n: "carrot" },
+        { e: "🥔", n: "potato" },
+        { e: "🍕", n: "pizza" },
+        { e: "🍔", n: "hamburger" },
+        { e: "🌮", n: "taco" },
+        { e: "🌯", n: "burrito" },
+        { e: "🍜", n: "steaming bowl" },
+        { e: "🍣", n: "sushi" },
+        { e: "🍦", n: "soft ice cream" },
+        { e: "🎂", n: "birthday cake" },
+        { e: "🍰", n: "shortcake" },
+        { e: "🧁", n: "cupcake" },
+        { e: "🍫", n: "chocolate bar" },
+        { e: "🍭", n: "lollipop" },
+        { e: "☕", n: "hot beverage" },
+        { e: "🍵", n: "teacup" },
+        { e: "🍺", n: "beer mug" },
+        { e: "🍻", n: "clinking beer mugs" },
+        { e: "🥂", n: "clinking glasses" },
+        { e: "🍷", n: "wine glass" },
+        { e: "🥃", n: "tumbler glass" },
+        // travel & places
+        { e: "🚗", n: "automobile" },
+        { e: "🚕", n: "taxi" },
+        { e: "🚌", n: "bus" },
+        { e: "✈️", n: "airplane" },
+        { e: "🚀", n: "rocket" },
+        { e: "🛸", n: "flying saucer" },
+        { e: "🚢", n: "ship" },
+        { e: "⛵", n: "sailboat" },
+        { e: "🏠", n: "house" },
+        { e: "🏢", n: "office building" },
+        { e: "🏥", n: "hospital" },
+        { e: "🏦", n: "bank" },
+        { e: "🏨", n: "hotel" },
+        { e: "🌆", n: "cityscape at dusk" },
+        { e: "🌉", n: "bridge at night" },
+        { e: "⛺", n: "tent" },
+        { e: "🏔️", n: "snow capped mountain" },
+        { e: "🏖️", n: "beach with umbrella" },
+        { e: "🏝️", n: "desert island" },
+        { e: "🗺️", n: "world map" },
+        // activities & sports
+        { e: "⚽", n: "soccer ball" },
+        { e: "🏀", n: "basketball" },
+        { e: "🏈", n: "american football" },
+        { e: "⚾", n: "baseball" },
+        { e: "🎾", n: "tennis" },
+        { e: "🏐", n: "volleyball" },
+        { e: "🎱", n: "billiards" },
+        { e: "🎮", n: "video game" },
+        { e: "🎲", n: "game die" },
+        { e: "🎭", n: "performing arts" },
+        { e: "🎨", n: "artist palette" },
+        { e: "🎬", n: "clapper board" },
+        { e: "🎤", n: "microphone" },
+        { e: "🎧", n: "headphones" },
+        { e: "🎼", n: "musical score" },
+        { e: "🎹", n: "musical keyboard" },
+        { e: "🥁", n: "drum" },
+        { e: "🎸", n: "guitar" },
+        { e: "🎺", n: "trumpet" },
+        { e: "🎻", n: "violin" },
+        { e: "🎪", n: "circus tent" },
+        { e: "🏆", n: "trophy" },
+        { e: "🥇", n: "first place medal" },
+        { e: "🥈", n: "second place medal" },
+        { e: "🥉", n: "third place medal" },
+        { e: "🎯", n: "bullseye" },
+        // objects
+        { e: "💻", n: "laptop" },
+        { e: "🖥️", n: "desktop computer" },
+        { e: "📱", n: "mobile phone" },
+        { e: "📷", n: "camera" },
+        { e: "📺", n: "television" },
+        { e: "📻", n: "radio" },
+        { e: "🔋", n: "battery" },
+        { e: "💡", n: "light bulb" },
+        { e: "🔦", n: "flashlight" },
+        { e: "📝", n: "memo" },
+        { e: "📄", n: "page" },
+        { e: "📊", n: "bar chart" },
+        { e: "📌", n: "pushpin" },
+        { e: "📍", n: "round pushpin" },
+        { e: "✂️", n: "scissors" },
+        { e: "🔒", n: "locked" },
+        { e: "🔓", n: "unlocked" },
+        { e: "🔑", n: "key" },
+        { e: "🔨", n: "hammer" },
+        { e: "🔧", n: "wrench" },
+        { e: "⚙️", n: "gear" },
+        { e: "🔬", n: "microscope" },
+        { e: "🔭", n: "telescope" },
+        { e: "📡", n: "satellite antenna" },
+        { e: "💉", n: "syringe" },
+        { e: "💊", n: "pill" },
+        { e: "🚪", n: "door" },
+        { e: "🎁", n: "wrapped gift" },
+        { e: "🎀", n: "ribbon" },
+        { e: "🎉", n: "party popper" },
+        { e: "🎊", n: "confetti ball" },
+        { e: "💰", n: "money bag" },
+        { e: "💳", n: "credit card" },
+        { e: "📦", n: "package" },
+        { e: "🗑️", n: "wastebasket" },
+        // symbols & hearts
+        { e: "❤️", n: "red heart" },
+        { e: "🧡", n: "orange heart" },
+        { e: "💛", n: "yellow heart" },
+        { e: "💚", n: "green heart" },
+        { e: "💙", n: "blue heart" },
+        { e: "💜", n: "purple heart" },
+        { e: "🖤", n: "black heart" },
+        { e: "🤍", n: "white heart" },
+        { e: "💔", n: "broken heart" },
+        { e: "❣️", n: "heart exclamation" },
+        { e: "💕", n: "two hearts" },
+        { e: "💖", n: "sparkling heart" },
+        { e: "💘", n: "heart with arrow" },
+        { e: "♻️", n: "recycling symbol" },
+        { e: "✅", n: "check mark button" },
+        { e: "❌", n: "cross mark" },
+        { e: "⭕", n: "hollow red circle" },
+        { e: "⚠️", n: "warning" },
+        { e: "💯", n: "hundred points" },
+        { e: "❓", n: "question mark" },
+        { e: "❗", n: "exclamation mark" },
+        { e: "‼️", n: "double exclamation mark" },
+        { e: "🌐", n: "globe with meridians" },
+        { e: "🚩", n: "triangular flag" },
+    ]
+
+    function copyEmoji(e) {
+        clipProc.command = ["sh", "-c", "printf '%s' \"$1\" | wl-copy", "--", e]
+        clipProc.running = false
+        clipProc.running = true
+        root.notifyClipboardCopy()
+    }
+
+    function navigate(pg) {
+        _pendingPage = pg
+        if (visible) {
+            var _isSearch = (pg === "search")
+            immediateSearch = _isSearch
+            page = _isSearch ? "main" : pg
+            navStack = []
+            selectedIndex = 0
+            searchQuery = ""
+            vimSearchMode = false
+        }
+    }
+
     onVisibleChanged: {
         if (visible) {
             monitorName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
-            page = requestedPage
-            requestedPage = "main"
+            var _isSearch = _pendingPage === "search"
+            immediateSearch = _isSearch
+            page = _isSearch ? "main" : _pendingPage
             navStack = []
             selectedIndex = 0
             searchQuery = ""
@@ -365,6 +685,7 @@ FloatingWindow {
             focusGrabTimer.restart()
             moveMonitorTimer.restart()
         } else {
+            _pendingPage = "main"
             focusGrabReady = false
             focusGrabTimer.stop()
             moveMonitorTimer.stop()
@@ -1106,13 +1427,13 @@ FloatingWindow {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }
 
-        property real searchOpacity: (root.searchQuery !== "" || (Theme.vimBinds && root.vimSearchMode)) ? 1.0 : 0.0
+        property real searchOpacity: (root.searchQuery !== "" || root.immediateSearch || (Theme.vimBinds && root.vimSearchMode)) ? 1.0 : 0.0
         Behavior on searchOpacity {
             NumberAnimation { duration: 140; easing.type: Easing.InOutQuad }
         }
 
         Keys.onPressed: event => {
-            const inSearch = Theme.vimBinds ? root.vimSearchMode : root.searchQuery !== ""
+            const inSearch = root.immediateSearch || (Theme.vimBinds ? root.vimSearchMode : root.searchQuery !== "")
 
             // WiFi password mode — intercept all input
             if (root.wifiPasswordMode) {
@@ -1143,6 +1464,7 @@ FloatingWindow {
             if (event.key === Qt.Key_Escape) {
                 if (inSearch) {
                     root.searchQuery = ""
+                    root.immediateSearch = false
                     if (Theme.vimBinds) root.vimSearchMode = false
                 } else if (root.page === "main") {
                     root.closeRequested()
@@ -1220,6 +1542,8 @@ FloatingWindow {
                         lockscreenList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "power")
                         powerListView.positionViewAtIndex(upScroll, ListView.Contain)
+                    else if (root.page === "emoji")
+                        emojiListView.positionViewAtIndex(upScroll, ListView.Contain)
                 }
                 event.accepted = true
                 return
@@ -1248,6 +1572,7 @@ FloatingWindow {
                              : root.page === "system"         ? Math.max(0, root.systemSettingItems.length - 1)
                              : root.page === "lockscreen"     ? root.lockscreenOptions.length - 1
                              : root.page === "power"          ? root.powerItems.length - 1
+                             : root.page === "emoji"          ? Math.max(0, root.emojiList.length - 1)
                              : 0
                 if (inSearch) {
                     if (root.selectedSearchIndex < root.searchResults.length - 1) {
@@ -1300,6 +1625,8 @@ FloatingWindow {
                         lockscreenList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "power")
                         powerListView.positionViewAtIndex(downScroll, ListView.Contain)
+                    else if (root.page === "emoji")
+                        emojiListView.positionViewAtIndex(downScroll, ListView.Contain)
                 }
                 event.accepted = true
                 return
@@ -1429,7 +1756,9 @@ FloatingWindow {
 
             if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32) {
                 if (!Theme.vimBinds || inSearch) {
+                    if (Theme.vimBinds && root.immediateSearch) root.vimSearchMode = true
                     root.searchQuery += event.text
+                    root.immediateSearch = false
                     event.accepted = true
                 }
             }
@@ -1517,6 +1846,9 @@ FloatingWindow {
             } else if (root.page === "power") {
                 const item = root.powerItems[root.selectedIndex]
                 if (item) root.runPowerAction(item)
+            } else if (root.page === "emoji") {
+                const emoji = root.emojiList[root.selectedIndex]
+                if (emoji) { root.copyEmoji(emoji.e); root.closeRequested() }
             } else if (root.page === "system") {
                 const item = root.systemSettingItems[root.selectedIndex]
                 if (!item || item.type === "section") return
@@ -1589,9 +1921,34 @@ FloatingWindow {
             else if (result.type === "layout") { root.applyLayout(result.id) }
             else if (result.type === "menu") { root.page = result.id; root.selectedIndex = 0 }
             else if (result.type === "clipboard") { root.copyClipboardItem(result.line); root.closeRequested(); return }
-            else if (result.type === "system_item") { root.page = result.page; root.selectedIndex = result.index }
-            else if (result.type === "bar_module") { root.page = result.page; root.selectedIndex = result.index }
+            else if (result.type === "emoji") { root.copyEmoji(result.e); root.closeRequested(); return }
+            else if (result.type === "system_item") {
+                root._pendingSystemLabel = result.label
+                root.page = result.page
+                const initIdx = root.systemSettingItems.findIndex(s => s.label === result.label)
+                root.selectedIndex = initIdx >= 0 ? initIdx : 0
+                Qt.callLater(() => sysListView.positionViewAtIndex(root.selectedIndex, ListView.Contain))
+            }
+            else if (result.type === "bar_module") { root.page = result.page; root.selectedIndex = result.index; Qt.callLater(() => scrollToSelected()) }
             root.searchQuery = ""
+            root.vimSearchMode = false
+            root.immediateSearch = false
+        }
+
+        function scrollToSelected() {
+            const idx = root.selectedIndex
+            if (root.page === "main")           mainList.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "appearance") appearanceList.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "system")     sysListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "bar")        barListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "apps")       appListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "bluetooth")  btListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "wifi")       wifiListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "palette")    paletteList.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "power")      powerListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "notifications") notifListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "clipboard")  clipListView.positionViewAtIndex(idx, ListView.Contain)
+            else if (root.page === "lockscreen") lockscreenList.positionViewAtIndex(idx, ListView.Contain)
         }
 
         // ── Main page ──────────────────────────────────────────
@@ -2952,6 +3309,110 @@ FloatingWindow {
                 }
             }
 
+            // ── Emoji picker ───────────────────────────────────
+            Item {
+                anchors.fill: parent
+                visible: root.activeSubPage === "emoji"
+
+                Rectangle {
+                    id: emojiHeader
+                    width: parent.width
+                    height: 44
+                    color: Theme.surface
+
+                    Row {
+                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                        spacing: 14
+
+                        Text {
+                            text: "< back"
+                            color: Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 1
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            text: "emoji picker"
+                            color: Theme.yellow
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf + 1
+                            font.bold: true
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    Text {
+                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                        text: root.emojiList.length + " emoji"
+                        color: Theme.subtext
+                        font.family: "JetBrains Mono"
+                        font.pixelSize: sf - 2
+                    }
+                }
+
+                Rectangle { id: emojiDivider; anchors.top: emojiHeader.bottom; width: parent.width; height: 1; color: Theme.border }
+
+                ListView {
+                    id: emojiListView
+                    anchors { left: parent.left; right: parent.right; top: emojiDivider.bottom; bottom: parent.bottom }
+                    model: root.emojiList
+                    clip: true
+
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+
+                        width: emojiListView.width
+                        height: 44
+                        color: root.selectedIndex === index ? Theme.border : "transparent"
+
+                        Row {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            spacing: 16
+
+                            Text {
+                                text: root.selectedIndex === index ? ">" : " "
+                                color: Theme.blue
+                                font.family: "JetBrains Mono"
+                                font.pixelSize: sf
+                                verticalAlignment: Text.AlignVCenter
+                                width: 12
+                            }
+
+                            Text {
+                                text: modelData.e
+                                font.pixelSize: sf + 6
+                                verticalAlignment: Text.AlignVCenter
+                                width: 32
+                            }
+
+                            Text {
+                                text: modelData.n
+                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
+                                font.family: "JetBrains Mono"
+                                font.pixelSize: sf
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Text {
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: "copy"
+                            color: root.selectedIndex === index ? Theme.yellow : "transparent"
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 3
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { root.selectedIndex = index; root.copyEmoji(modelData.e); root.closeRequested() }
+                        }
+                    }
+                }
+            }
+
             // ── Level-2 container (appearance sub-pages) ─────────────────
             Item {
                 width: parent.width
@@ -3946,7 +4407,7 @@ FloatingWindow {
             anchors.fill: parent
             opacity: keyNav.searchOpacity
             visible: keyNav.searchOpacity > 0
-            enabled: root.searchQuery !== "" || (Theme.vimBinds && root.vimSearchMode)
+            enabled: root.searchQuery !== "" || root.immediateSearch || (Theme.vimBinds && root.vimSearchMode)
 
             Rectangle { anchors.fill: parent; color: Theme.base }
 
@@ -3985,7 +4446,7 @@ FloatingWindow {
 
                         SequentialAnimation on opacity {
                             loops: Animation.Infinite
-                            running: root.searchQuery !== "" || (Theme.vimBinds && root.vimSearchMode)
+                            running: root.searchQuery !== "" || root.immediateSearch || (Theme.vimBinds && root.vimSearchMode)
                             NumberAnimation { to: 0; duration: 500; easing.type: Easing.InOutSine }
                             NumberAnimation { to: 1; duration: 500; easing.type: Easing.InOutSine }
                         }
@@ -3994,7 +4455,7 @@ FloatingWindow {
 
                 Text {
                     anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                    text: (Theme.vimBinds && root.vimSearchMode && root.searchQuery === "") ? "type to search"
+                    text: ((Theme.vimBinds && root.vimSearchMode) || root.immediateSearch) && root.searchQuery === "" ? "type to search"
                         : root.searchResults.length === 0 ? "no results"
                         : root.searchResults.length + " result" + (root.searchResults.length === 1 ? "" : "s")
                     color: Theme.subtext
@@ -4062,6 +4523,7 @@ FloatingWindow {
                                     : modelData.type === "clipboard" ? "clipboard"
                                     : modelData.type === "system_item" ? (modelData.sub || "system setting")
                                     : modelData.type === "bar_module" ? "bar module"
+                                    : modelData.type === "emoji" ? "emoji"
                                     : modelData.type === "wifi" ? (modelData.inUse ? "connected" : "wifi")
                                     : modelData.type
                                 color: modelData.type === "wallpaper"  ? Theme.teal
@@ -4227,6 +4689,15 @@ FloatingWindow {
                         color: Theme.subtext
                         font.family: "JetBrains Mono"
                         font.pixelSize: sf - 1
+                    }
+
+                    // Emoji character
+                    Text {
+                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        visible: modelData.type === "emoji"
+                        text: modelData.type === "emoji" ? modelData.e : ""
+                        font.pixelSize: sf + 8
+                        verticalAlignment: Text.AlignVCenter
                     }
 
                     // Math copy hint
