@@ -1,0 +1,11 @@
+-- See https://wiki.hypr.land/Configuring/Basics/Autostart/
+hl.on("hyprland.start", function()
+	hl.exec_cmd('kitty -e zsh -c "sleep 1 && hyfetch; exec zsh"')
+	-- hl.exec_cmd("waybar")
+	hl.exec_cmd("quickshell")
+	hl.exec_cmd("solaar --window=hide")
+	hl.exec_cmd("hypridle")
+	hl.exec_cmd("awww-daemon")
+	hl.exec_cmd("wl-paste --watch cliphist store")
+	hl.exec_cmd("hyprctl dispatch workspace 1")
+end)
