@@ -6,3 +6,6 @@ hl.window_rule({
 	move = "center center",
 	border_size = 0,
 })
+
+-- Never allow any app to inhibit idle — screen only wakes from real input
+hl.window_rule({ match = { class = ".*" }, idle_inhibit = "none" })
