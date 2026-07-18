@@ -100,6 +100,9 @@ FloatingWindow {
     property var workspaceRules: []
     property bool vimSearchMode: false
     property bool immediateSearch: false
+    property var wallpaperTags: {}
+    property bool wallpaperTagMode: false
+    property string wallpaperTagInput: ""
 
     readonly property var monitorColors: [Theme.blue, Theme.green, Theme.yellow, Theme.teal, Theme.purple, Theme.red]
 
@@ -145,6 +148,7 @@ FloatingWindow {
         if (page === "bluetooth") btListProc.running = true
         if (page === "wifi") { root.wifiScanning = true; wifiListProc.running = true }
         if (page !== "wifi") { root.wifiPasswordMode = false; root.wifiPasswordInput = ""; root.wifiPendingNetwork = null; root.wifiError = "" }
+        if (page !== "wallpaper") { root.wallpaperTagMode = false; root.wallpaperTagInput = "" }
         if (page === "layout") layoutQueryProc.running = true
         if (page === "clipboard") { clipDaemonProc.running = true; clipListProc.running = true }
         if (page === "monitor_layout") {
@@ -209,7 +213,9 @@ FloatingWindow {
         }
         for (const f of wallpaperFiles) {
             const name = f.replace(/\.[^.]+$/, "")
-            const s = root.fuzzyScore(searchQuery, name)
+            let s = root.fuzzyScore(searchQuery, name)
+            for (const tag of (root.wallpaperTags[f] || []))
+                s = Math.max(s, root.fuzzyScore(searchQuery, tag))
             if (s > 0) results.push({ score: s, type: "wallpaper", label: name, file: f })
         }
         for (const p of paletteOptions) {
@@ -931,7 +937,19 @@ FloatingWindow {
     }
 
     Process { id: saveItemsProc }
+    Process { id: saveTagsProc }
     Process { id: clipProc; stdout: StdioCollector {} }
+
+    Process {
+        id: loadTagsProc
+        command: ["sh", "-c", "cat \"$HOME/.config/quickshell/wallpaper-tags.json\" 2>/dev/null"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root.wallpaperTags = JSON.parse(this.text.trim()) } catch(e) {}
+            }
+        }
+    }
 
     signal clipboardCopyTriggered()
 
@@ -1367,7 +1385,7 @@ FloatingWindow {
             const type = types[Math.floor(Math.random() * types.length)]
             const cmd = ["awww", "img",
                 "--transition-type", type,
-                "--transition-duration", "1.5",
+                "--transition-duration", "0.5",
                 "--transition-fps", "60"]
             if (root.monitorName) cmd.push("--outputs", root.monitorName)
             cmd.push(root.wallpapersDir + filename)
@@ -1397,6 +1415,28 @@ FloatingWindow {
         const current = Theme[id] || "disabled"
         const idx = positions.indexOf(current)
         Theme[id] = positions[(idx + 1) % positions.length]
+    }
+
+    function saveWallpaperTags() {
+        const safe = JSON.stringify(root.wallpaperTags).replace(/'/g, "'\\''")
+        saveTagsProc.command = ["sh", "-c",
+            "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + safe + "' > \"$HOME/.config/quickshell/wallpaper-tags.json\""]
+        saveTagsProc.running = false
+        saveTagsProc.running = true
+    }
+
+    function toggleWallpaperTag(filename, tag) {
+        tag = tag.trim().toLowerCase()
+        if (!tag) return
+        const tags = Array.from(root.wallpaperTags[filename] || [])
+        const idx = tags.indexOf(tag)
+        if (idx >= 0) tags.splice(idx, 1)
+        else tags.push(tag)
+        const updated = Object.assign({}, root.wallpaperTags)
+        if (tags.length === 0) delete updated[filename]
+        else updated[filename] = tags
+        root.wallpaperTags = updated
+        root.saveWallpaperTags()
     }
 
     Connections {
@@ -1435,6 +1475,25 @@ FloatingWindow {
 
         Keys.onPressed: event => {
             const inSearch = root.immediateSearch || (Theme.vimBinds ? root.vimSearchMode : root.searchQuery !== "")
+
+            // Wallpaper tag input mode — intercept all input
+            if (root.wallpaperTagMode) {
+                if (event.key === Qt.Key_Escape) {
+                    root.wallpaperTagMode = false
+                    root.wallpaperTagInput = ""
+                } else if (event.key === Qt.Key_Backspace) {
+                    root.wallpaperTagInput = root.wallpaperTagInput.slice(0, -1)
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    const file = root.wallpaperFiles[root.selectedIndex]
+                    if (file) root.toggleWallpaperTag(file, root.wallpaperTagInput)
+                    root.wallpaperTagMode = false
+                    root.wallpaperTagInput = ""
+                } else if (event.text.length > 0) {
+                    root.wallpaperTagInput += event.text
+                }
+                event.accepted = true
+                return
+            }
 
             // WiFi password mode — intercept all input
             if (root.wifiPasswordMode) {
@@ -1735,6 +1794,13 @@ FloatingWindow {
 
             if (event.key === Qt.Key_A && root.page === "wallpaper" && !inSearch) {
                 root.extractWallpaperPalette()
+                event.accepted = true
+                return
+            }
+
+            if (event.key === Qt.Key_T && root.page === "wallpaper" && !inSearch) {
+                root.wallpaperTagMode = true
+                root.wallpaperTagInput = ""
                 event.accepted = true
                 return
             }
@@ -3789,8 +3855,11 @@ FloatingWindow {
 
                     Text {
                         anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.extractingPalette ? "analyzing..." : "a: extract palette"
-                        color: root.extractingPalette ? Theme.yellow : Theme.subtext
+                        text: root.wallpaperTagMode
+                            ? "tag: " + root.wallpaperTagInput + "█"
+                            : root.extractingPalette ? "analyzing..." : "a: palette  t: tag"
+                        color: root.wallpaperTagMode ? Theme.green
+                            : root.extractingPalette ? Theme.yellow : Theme.subtext
                         font.family: "JetBrains Mono"
                         font.pixelSize: sf - 2
                     }
@@ -3818,28 +3887,52 @@ FloatingWindow {
                         required property var modelData
                         required property int index
 
+                        property var fileTags: root.wallpaperTags[modelData] || []
+
                         width: wpList.width
-                        height: 56
+                        height: fileTags.length > 0 ? 70 : 56
                         color: root.selectedIndex === index ? Theme.border : "transparent"
 
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
+                        Column {
+                            anchors { left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 108; verticalCenter: parent.verticalCenter }
+                            spacing: 3
 
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
+                            Row {
+                                spacing: 14
+
+                                Text {
+                                    text: root.selectedIndex === index ? ">" : " "
+                                    color: Theme.blue
+                                    font.family: "JetBrains Mono"
+                                    font.pixelSize: sf
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                Text {
+                                    text: modelData.replace(/\.[^.]+$/, "")
+                                    color: root.selectedIndex === index ? Theme.text : Theme.subtext
+                                    font.family: "JetBrains Mono"
+                                    font.pixelSize: sf
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
 
-                            Text {
-                                text: modelData.replace(/\.[^.]+$/, "")
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
+                            Row {
+                                leftPadding: 20
+                                spacing: 8
+                                visible: fileTags.length > 0
+
+                                Repeater {
+                                    model: fileTags
+                                    Text {
+                                        required property var modelData
+                                        text: "#" + modelData
+                                        color: Theme.teal
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: sf - 3
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
                             }
                         }
 

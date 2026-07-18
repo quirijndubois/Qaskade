@@ -9,7 +9,7 @@ wallpaper="$WP_DIR/${files[RANDOM % ${#files[@]}]}"
 
 transitions=(fade left right top bottom wipe wave grow center any outer)
 trans="${transitions[RANDOM % ${#transitions[@]}]}"
-awww img --transition-type "$trans" --transition-duration 1.5 --transition-fps 60 "$wallpaper" &
+awww img --transition-type "$trans" --transition-duration 0.5 --transition-fps 60 "$wallpaper" &
 
 colors=$("$PYTHON" "$QS_DIR/scripts/extract-palette.py" "$wallpaper") || exit 1
 
