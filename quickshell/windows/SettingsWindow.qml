@@ -757,6 +757,7 @@ FloatingWindow {
                 Theme.yellow  = parts[8]
                 Theme.teal    = parts[9]
                 Theme.purple  = parts[10]
+                Theme.saveCustomPaletteColors(parts)
                 Theme.updateKittyTheme()
                 Theme.updateFirefoxTheme()
                 Theme.updateSystemColorScheme()

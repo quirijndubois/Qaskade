@@ -152,7 +152,7 @@ ShellRoot {
                     id: barStrip
                     anchors { left: parent.left; right: parent.right }
                     y: root.barVisible ? 0 : -(Theme.barHeight + Theme.gapsOut + 10)
-                    Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                    Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.20, 0.00, 0.00, 1.00, 1.0, 1.0] } }
                     height: (Theme.design === "pills" || Theme.design === "islands")
                             ? Theme.barHeight + Theme.gapsOut
                             : Theme.barHeight

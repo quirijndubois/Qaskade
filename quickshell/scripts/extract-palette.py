@@ -95,8 +95,25 @@ if dark_theme:
     bg_pool       = colors[:max(5, len(colors) // 3 + 2)]
     fg_candidates = list(reversed(colors[len(colors) * 2 // 3:]))
 else:
-    bg_pool       = list(reversed(colors[len(colors) * 2 // 3:]))[:max(5, len(colors) // 3 + 2)]
-    fg_candidates = colors[:max(2, len(colors) // 3)]
+    # Light image → always produce a dark palette.
+    # Derive dark backgrounds by crushing the value of the image's dominant hue,
+    # then flip dark_theme so all subsequent logic (text contrast, accent brightness)
+    # runs in dark mode.
+    dark_theme = True
+    sorted_by_sat = sorted(colors, key=lambda c: to_hsv(*c)[1], reverse=True)
+    h0, s0, _ = to_hsv(*sorted_by_sat[0]) if sorted_by_sat else (0.63, 0.3, 0.5)
+    bg_pool = [
+        from_hsv(h0, min(s0 * 0.50, 0.25), 0.12),
+        from_hsv(h0, min(s0 * 0.40, 0.20), 0.17),
+        from_hsv(h0, min(s0 * 0.35, 0.17), 0.23),
+        from_hsv(h0, min(s0 * 0.45, 0.22), 0.09),
+        from_hsv(h0, min(s0 * 0.30, 0.15), 0.20),
+    ]
+    # Near-white text with a subtle tint toward the image's dominant hue
+    fg_candidates = [
+        from_hsv(h0, 0.05, 0.90),
+        from_hsv(h0, 0.08, 0.60),
+    ]
 
 # ── Backgrounds — randomly pick 3 from the pool, heavier weight toward extremes ──
 pool_size = len(bg_pool)
