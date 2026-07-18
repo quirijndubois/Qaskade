@@ -351,10 +351,10 @@ FloatingWindow {
     ]
 
     readonly property var powerItems: [
-        { id: "lock",      label: "lock",      icon: "",  color: "blue",   cmd: ["loginctl", "lock-session"] },
+        { id: "lock",      label: "lock",      icon: "",  color: "blue",   cmd: ["quickshell", "ipc", "-c", "default", "call", "lock", "lock"] },
         { id: "suspend",   label: "suspend",   icon: "",  color: "teal",   cmd: ["systemctl", "suspend"] },
         { id: "hibernate", label: "hibernate", icon: "󰤄",  color: "purple", cmd: ["systemctl", "hibernate"] },
-        { id: "logout",    label: "log out",   icon: "󰍃",  color: "yellow", cmd: ["hyprctl", "dispatch", "exit"] },
+        { id: "logout",    label: "log out",   icon: "󰍃",  color: "yellow", cmd: ["sh", "-c", "hyprctl dispatch 'hl.dsp.exit()'"] },
         { id: "reboot",    label: "reboot",    icon: "",  color: "yellow", cmd: ["systemctl", "reboot"] },
         { id: "shutdown",  label: "shut down", icon: "⏻",  color: "red",    cmd: ["systemctl", "poweroff"] },
     ]
