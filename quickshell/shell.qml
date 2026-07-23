@@ -13,6 +13,7 @@ ShellRoot {
     property bool settingsOpen: false
     property bool sessionLocked: false
     property bool barVisible: true
+    property bool wallpaperPickerOpen: false
 
     signal clipboardCopied()
 
@@ -62,6 +63,14 @@ ShellRoot {
         function brightness(pct) { OsdState.showBrightness(parseInt(pct)) }
     }
 
+    IpcHandler {
+        target: "wallpaper"
+
+        function show()   { root.wallpaperPickerOpen = true }
+        function hide()   { root.wallpaperPickerOpen = false }
+        function toggle() { root.wallpaperPickerOpen = !root.wallpaperPickerOpen }
+    }
+
     LockScreen {
         id: lockScreen
         onLockReleased: root.sessionLocked = false
@@ -83,6 +92,11 @@ ShellRoot {
         id: settingsWindow
         visible: root.settingsOpen
         onCloseRequested: { root.settingsOpen = false }
+    }
+
+    WallpaperPicker {
+        shown: root.wallpaperPickerOpen
+        onCloseRequested: { root.wallpaperPickerOpen = false }
     }
 
     Connections {

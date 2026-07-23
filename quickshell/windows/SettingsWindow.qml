@@ -101,8 +101,6 @@ FloatingWindow {
     property bool vimSearchMode: false
     property bool immediateSearch: false
     property var wallpaperTags: {}
-    property bool wallpaperTagMode: false
-    property string wallpaperTagInput: ""
 
     readonly property var monitorColors: [Theme.blue, Theme.green, Theme.yellow, Theme.teal, Theme.purple, Theme.red]
 
@@ -148,7 +146,6 @@ FloatingWindow {
         if (page === "bluetooth") btListProc.running = true
         if (page === "wifi") { root.wifiScanning = true; wifiListProc.running = true }
         if (page !== "wifi") { root.wifiPasswordMode = false; root.wifiPasswordInput = ""; root.wifiPendingNetwork = null; root.wifiError = "" }
-        if (page !== "wallpaper") { root.wallpaperTagMode = false; root.wallpaperTagInput = "" }
         if (page === "layout") layoutQueryProc.running = true
         if (page === "clipboard") { clipDaemonProc.running = true; clipListProc.running = true }
         if (page === "monitor_layout") {
@@ -366,7 +363,6 @@ FloatingWindow {
     ]
 
     readonly property var appearanceItems: [
-        { id: "wallpaper", label: "wallpaper",    icon: "" },
         { id: "palette",   label: "palette",      icon: "" },
         { id: "design",    label: "bar design",   icon: "" },
         { id: "bar",        label: "bar elements", icon: "" },
@@ -1462,7 +1458,7 @@ FloatingWindow {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }
 
-        readonly property var level2Pages: ["wallpaper", "palette", "design", "bar", "layout", "monitor_layout", "lockscreen"]
+        readonly property var level2Pages: ["palette", "design", "bar", "layout", "monitor_layout", "lockscreen"]
         property real subOffset: level2Pages.indexOf(root.page) >= 0 ? 1.0 : 0.0
         Behavior on subOffset {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -1475,25 +1471,6 @@ FloatingWindow {
 
         Keys.onPressed: event => {
             const inSearch = root.immediateSearch || (Theme.vimBinds ? root.vimSearchMode : root.searchQuery !== "")
-
-            // Wallpaper tag input mode — intercept all input
-            if (root.wallpaperTagMode) {
-                if (event.key === Qt.Key_Escape) {
-                    root.wallpaperTagMode = false
-                    root.wallpaperTagInput = ""
-                } else if (event.key === Qt.Key_Backspace) {
-                    root.wallpaperTagInput = root.wallpaperTagInput.slice(0, -1)
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                    const file = root.wallpaperFiles[root.selectedIndex]
-                    if (file) root.toggleWallpaperTag(file, root.wallpaperTagInput)
-                    root.wallpaperTagMode = false
-                    root.wallpaperTagInput = ""
-                } else if (event.text.length > 0) {
-                    root.wallpaperTagInput += event.text
-                }
-                event.accepted = true
-                return
-            }
 
             // WiFi password mode — intercept all input
             if (root.wifiPasswordMode) {
@@ -1576,8 +1553,6 @@ FloatingWindow {
                         mainList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "appearance")
                         appearanceList.positionViewAtIndex(upScroll, ListView.Contain)
-                    else if (root.page === "wallpaper")
-                        wpList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "palette")
                         paletteList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "apps")
@@ -1619,7 +1594,6 @@ FloatingWindow {
                 const shiftHeld = (event.modifiers & Qt.ShiftModifier) !== 0
                 const maxIdx = root.page === "main"          ? root.mainItems.length - 1
                              : root.page === "appearance"     ? root.appearanceItems.length - 1
-                             : root.page === "wallpaper"      ? Math.max(0, root.wallpaperFiles.length - 1)
                              : root.page === "palette"        ? root.paletteOptions.length - 1
                              : root.page === "apps"           ? Math.max(0, root.appsList.length - 1)
                              : root.page === "bluetooth"      ? Math.max(0, root.bluetoothDevices.length - 1)
@@ -1659,8 +1633,6 @@ FloatingWindow {
                         mainList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "appearance")
                         appearanceList.positionViewAtIndex(downScroll, ListView.Contain)
-                    else if (root.page === "wallpaper")
-                        wpList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "palette")
                         paletteList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "apps")
@@ -1792,19 +1764,6 @@ FloatingWindow {
                 }
             }
 
-            if (event.key === Qt.Key_A && root.page === "wallpaper" && !inSearch) {
-                root.extractWallpaperPalette()
-                event.accepted = true
-                return
-            }
-
-            if (event.key === Qt.Key_T && root.page === "wallpaper" && !inSearch) {
-                root.wallpaperTagMode = true
-                root.wallpaperTagInput = ""
-                event.accepted = true
-                return
-            }
-
             if (root.page === "wifi" && !inSearch) {
                 if (event.key === Qt.Key_R) {
                     root.wifiScanning = true
@@ -1870,8 +1829,6 @@ FloatingWindow {
             } else if (root.page === "appearance") {
                 const item = root.appearanceItems[root.selectedIndex]
                 if (item) navigateTo(item.id)
-            } else if (root.page === "wallpaper" && root.wallpaperFiles.length > 0) {
-                root.applyWallpaper(root.wallpaperFiles[root.selectedIndex])
             } else if (root.page === "palette") {
                 const palette = root.paletteOptions[root.selectedIndex]
                 if (palette && palette.type !== "section") Theme.name = palette.id
@@ -3819,144 +3776,6 @@ FloatingWindow {
                     }
                 }
             }
-
-            // ── Wallpaper ──────────────────────────────────────
-            Item {
-                anchors.fill: parent
-                visible: root.activeSubPage === "wallpaper"
-
-                Rectangle {
-                    id: wpHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "wallpaper"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.wallpaperTagMode
-                            ? "tag: " + root.wallpaperTagInput + "█"
-                            : root.extractingPalette ? "analyzing..." : "a: palette  t: tag"
-                        color: root.wallpaperTagMode ? Theme.green
-                            : root.extractingPalette ? Theme.yellow : Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
-                }
-
-                Rectangle { id: wpDivider; anchors.top: wpHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: root.wallpaperFiles.length === 0
-                    text: "loading..."
-                    color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf
-                }
-
-                ListView {
-                    id: wpList
-                    anchors { left: parent.left; right: parent.right; top: wpDivider.bottom; bottom: parent.bottom }
-                    model: root.wallpaperFiles
-                    clip: true
-                    visible: root.wallpaperFiles.length > 0
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        required property int index
-
-                        property var fileTags: root.wallpaperTags[modelData] || []
-
-                        width: wpList.width
-                        height: fileTags.length > 0 ? 70 : 56
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Column {
-                            anchors { left: parent.left; leftMargin: 20; right: parent.right; rightMargin: 108; verticalCenter: parent.verticalCenter }
-                            spacing: 3
-
-                            Row {
-                                spacing: 14
-
-                                Text {
-                                    text: root.selectedIndex === index ? ">" : " "
-                                    color: Theme.blue
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                Text {
-                                    text: modelData.replace(/\.[^.]+$/, "")
-                                    color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
-
-                            Row {
-                                leftPadding: 20
-                                spacing: 8
-                                visible: fileTags.length > 0
-
-                                Repeater {
-                                    model: fileTags
-                                    Text {
-                                        required property var modelData
-                                        text: "#" + modelData
-                                        color: Theme.teal
-                                        font.family: "JetBrains Mono"
-                                        font.pixelSize: sf - 3
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                            width: 80
-                            height: 45
-                            radius: 4
-                            color: Theme.surface
-                            clip: true
-
-                            Image {
-                                anchors.fill: parent
-                                source: "file://" + root.wallpapersDir + modelData
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                smooth: true
-                            }
-                        }
-
-                    }
-                }
-            }
-
             // ── Palette ────────────────────────────────────────
             Item {
                 anchors.fill: parent

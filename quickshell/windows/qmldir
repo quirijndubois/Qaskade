@@ -1,3 +1,4 @@
 LockScreen 1.0 LockScreen.qml
 OsdWindow 1.0 OsdWindow.qml
 SettingsWindow 1.0 SettingsWindow.qml
+WallpaperPicker 1.0 WallpaperPicker.qml
