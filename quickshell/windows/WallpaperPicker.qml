@@ -26,6 +26,11 @@ Item {
     property string wpDir:     ""
     property string homeDir:   ""
 
+    // Thumbnail cache: ~/wallpapers/.thumbs/ — always generated before images are shown
+    property bool   _hasThumbCache:    false
+    property bool   _genThumbsRunning: false
+    readonly property string thumbDir: _hasThumbCache ? wpDir + ".thumbs/" : ""
+
     // Snap scroll: disables highlight animation on open/rebuild
     property bool _snapScroll: true
     Timer { id: snapTimer; interval: 120; onTriggered: root._snapScroll = false }
@@ -47,10 +52,7 @@ Item {
     }
 
     // ── Tagging ───────────────────────────────────────────────────
-    property bool   tagMode:    false
-    property string tagInput:   ""
-    property int    tagSelIdx:  -1   // index into _currentFileTags when browsing; -1 = input mode
-    property bool   _autoTagging: false
+    property int    _minCatSize:  1
 
     readonly property string _currentFile: {
         const c = _cat()
@@ -59,48 +61,18 @@ Item {
         const fi = ((_offset() % n) + n) % n
         return c.files[fi]
     }
-    readonly property var _currentFileTags: {
-        if (!_tags || !_currentFile) return []
-        return _tags[_currentFile] || []
-    }
-
-    function _saveWallpaperTags() {
-        const safe = JSON.stringify(root._tags).replace(/'/g, "'\\''")
-        saveTagsProc.command = ["sh", "-c",
-            "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + safe + "' > \"$HOME/.config/quickshell/wallpaper-tags.json\""]
-        saveTagsProc.running = false
-        saveTagsProc.running = true
-    }
-
-    function _toggleTag(file, tag) {
-        tag = tag.trim().toLowerCase()
-        if (!tag || !file) return
-        const prevCatName = categories[selCatIdx] ? categories[selCatIdx].name : "all"
-        const tags = Array.from(root._tags[file] || [])
-        const idx = tags.indexOf(tag)
-        if (idx >= 0) tags.splice(idx, 1)
-        else tags.push(tag)
-        const updated = Object.assign({}, root._tags)
-        if (tags.length === 0) delete updated[file]
-        else updated[file] = tags
-        root._tags = updated
-        root._saveWallpaperTags()
-        root._buildCategories(prevCatName, file)
-    }
-
-    function autoTag() {
-        if (root._autoTagging || !root._currentFile || !homeDir) return
-        root._autoTagging = true
-        const path = wpDir + root._currentFile
-        autoTagProc.command = ["python3",
-            homeDir + "/.config/quickshell/scripts/auto-tag-wallpaper.py", path]
-        autoTagProc.running = false
-        autoTagProc.running = true
-    }
 
     // ── Navigation ───────────────────────────────────────────────
     function _cat()    { return categories[selCatIdx] || null }
-    function _offset() { return catOffsets[selCatIdx] || 0 }
+    function _offset() { return (catOffsets || {})[selCatIdx] || 0 }
+
+    // Debounce: wallpaper only applied after 100 ms of no navigation
+    property string _pendingTrans: "any"
+    Timer {
+        id: debounceTimer
+        interval: 100
+        onTriggered: root._applyTransition(root._pendingTrans)
+    }
 
     function _applyTransition(trans) {
         const c = _cat(); if (!c?.files.length) return
@@ -129,24 +101,24 @@ Item {
         const c = _cat(); if (!c?.files.length) return
         const o = Object.assign({}, catOffsets)
         o[selCatIdx] = _offset() + 1; catOffsets = o
-        _applyTransition("right")
+        root._pendingTrans = "right"; debounceTimer.restart()
     }
     function navLeft() {
         const c = _cat(); if (!c?.files.length) return
         const o = Object.assign({}, catOffsets)
         o[selCatIdx] = _offset() - 1; catOffsets = o
-        _applyTransition("left")
+        root._pendingTrans = "left"; debounceTimer.restart()
     }
     function navDown() {
         if (categories.length) {
             selCatIdx = (selCatIdx + 1) % categories.length
-            _applyTransition("any")
+            root._pendingTrans = "any"; debounceTimer.restart()
         }
     }
     function navUp() {
         if (categories.length) {
             selCatIdx = (selCatIdx - 1 + categories.length) % categories.length
-            _applyTransition("any")
+            root._pendingTrans = "any"; debounceTimer.restart()
         }
     }
 
@@ -154,22 +126,19 @@ Item {
         root.closeRequested()
     }
 
-    // ── Reload data on open, preserving previous position ────────
+    // ── Reload data on open: generate thumbs first, then load files ─
     onShownChanged: {
         if (shown) {
             root._snapScroll = true
             root._resumeCatName = (categories.length > 0 && categories[selCatIdx])
                 ? categories[selCatIdx].name : ""
             root._resumeFile = root._currentFile
-            if (wpDir) {
-                filesProc.running = false
-                filesProc.running = true
+            if (homeDir) {
+                genThumbsProc.command = ["sh",
+                    homeDir + "/.config/quickshell/scripts/gen-thumbs.sh"]
+                genThumbsProc.running = false
+                genThumbsProc.running = true
             }
-        } else {
-            root.tagMode      = false
-            root.tagInput     = ""
-            root.tagSelIdx    = -1
-            root._autoTagging = false
         }
     }
 
@@ -189,7 +158,8 @@ Item {
         }
         const cats = [{ name: "all", files: _allFiles }]
         for (const tag of Object.keys(tagMap).sort())
-            cats.push({ name: tag, files: tagMap[tag] })
+            if (tagMap[tag].length >= root._minCatSize)
+                cats.push({ name: tag, files: tagMap[tag] })
         categories = cats
 
         if (preserveCatName !== undefined && preserveFile !== undefined) {
@@ -240,10 +210,24 @@ Item {
     Process {
         id: tagsProc
         command: ["sh", "-c",
-            "cat \"$HOME/.config/quickshell/wallpaper-tags.json\" 2>/dev/null || echo '{}'"]
+            "cat \"$HOME/wallpapers/.tags\" 2>/dev/null || echo '{}'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try { root._tags = JSON.parse(this.text.trim()) } catch(e) { root._tags = {} }
+                reloadMinCatProc.running = false
+                reloadMinCatProc.running = true
+            }
+        }
+    }
+
+    // Re-reads min-cat-size on every open so settings changes take effect immediately.
+    Process {
+        id: reloadMinCatProc
+        command: ["sh", "-c", "cat \"$HOME/wallpapers/.min-cat-size\" 2>/dev/null || echo '1'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const n = parseInt(this.text.trim())
+                if (!isNaN(n) && n >= 1) root._minCatSize = n
                 if (root._resumeCatName) {
                     root._buildCategories(root._resumeCatName, root._resumeFile)
                 } else {
@@ -277,37 +261,37 @@ Item {
     }
 
     Process {
-        id: saveTagsProc
-        stdout: StdioCollector {}
-        stderr: StdioCollector {}
-    }
-
-    Process {
         id: paletteProc
         stdout: StdioCollector {}
         stderr: StdioCollector {}
     }
 
     Process {
-        id: autoTagProc
+        id: minCatProc
+        command: ["sh", "-c", "cat \"$HOME/wallpapers/.min-cat-size\" 2>/dev/null || echo '1'"]
+        running: true
         stdout: StdioCollector {
             onStreamFinished: {
-                root._autoTagging = false
-                const tagsStr = this.text.trim()
-                if (!tagsStr) return
-                const newTags = tagsStr.split(",").map(t => t.trim().toLowerCase()).filter(Boolean)
-                const file = root._currentFile
-                if (!file) return
-                const updated = Object.assign({}, root._tags)
-                const existing = updated[file] || []
-                updated[file] = Array.from(new Set([...existing, ...newTags]))
-                root._tags = updated
-                root._saveWallpaperTags()
-                const prevCatName = root.categories[root.selCatIdx]?.name || "all"
-                root._buildCategories(prevCatName, file)
+                const n = parseInt(this.text.trim())
+                if (!isNaN(n) && n >= 1) root._minCatSize = n
             }
         }
+    }
+
+    // Runs gen-thumbs.sh before loading the file list so delegates
+    // are only created once every thumb exists — no full-res fallback needed.
+    Process {
+        id: genThumbsProc
+        stdout: StdioCollector {}
         stderr: StdioCollector {}
+        onRunningChanged: {
+            root._genThumbsRunning = running
+            if (!running) {
+                root._hasThumbCache = true
+                filesProc.running = false
+                filesProc.running = true
+            }
+        }
     }
 
     // ── Per-screen panel ─────────────────────────────────────────
@@ -359,83 +343,11 @@ Item {
                         focus: root.shown && panel.isFocused
 
                         Keys.onPressed: event => {
-                            if (root.tagMode) {
-                                const tags = root._currentFileTags
-                                if (root.tagSelIdx >= 0) {
-                                    // Browse existing tags to delete
-                                    switch (event.key) {
-                                        case Qt.Key_Left:
-                                            if (tags.length) root.tagSelIdx = (root.tagSelIdx - 1 + tags.length) % tags.length
-                                            break
-                                        case Qt.Key_Right:
-                                            if (tags.length) root.tagSelIdx = (root.tagSelIdx + 1) % tags.length
-                                            break
-                                        case Qt.Key_Delete:
-                                        case Qt.Key_Backspace:
-                                        case Qt.Key_Return:
-                                        case Qt.Key_Enter:
-                                            if (tags.length > 0) {
-                                                root._toggleTag(root._currentFile, tags[root.tagSelIdx])
-                                                const rem = root._currentFileTags
-                                                root.tagSelIdx = rem.length > 0
-                                                    ? Math.min(root.tagSelIdx, rem.length - 1) : -1
-                                            }
-                                            break
-                                        case Qt.Key_Escape:
-                                            root.tagMode = false; root.tagSelIdx = -1; break
-                                        default:
-                                            if (event.text.length > 0) {
-                                                root.tagSelIdx = -1
-                                                root.tagInput  = event.text
-                                            }
-                                    }
-                                } else {
-                                    // Type a new tag
-                                    switch (event.key) {
-                                        case Qt.Key_Escape:
-                                            if (root._currentFileTags.length > 0) {
-                                                root.tagSelIdx = 0; root.tagInput = ""
-                                            } else {
-                                                root.tagMode = false; root.tagInput = ""
-                                            }
-                                            break
-                                        case Qt.Key_Backspace:
-                                            if (root.tagInput.length > 0) {
-                                                root.tagInput = root.tagInput.slice(0, -1)
-                                            } else if (root._currentFileTags.length > 0) {
-                                                root.tagSelIdx = 0
-                                            } else {
-                                                root.tagMode = false
-                                            }
-                                            break
-                                        case Qt.Key_Return:
-                                        case Qt.Key_Enter:
-                                            if (root.tagInput.trim()) {
-                                                root._toggleTag(root._currentFile, root.tagInput)
-                                                root.tagInput  = ""
-                                                root.tagSelIdx = 0
-                                            } else {
-                                                root.tagMode = false
-                                            }
-                                            break
-                                        default:
-                                            if (event.text.length > 0) root.tagInput += event.text
-                                    }
-                                }
-                                event.accepted = true
-                                return
-                            }
                             switch (event.key) {
                                 case Qt.Key_Left:   root.navLeft();    break
                                 case Qt.Key_Right:  root.navRight();   break
                                 case Qt.Key_Up:     root.navUp();      break
                                 case Qt.Key_Down:   root.navDown();    break
-                                case Qt.Key_T:
-                                    root.tagInput  = ""
-                                    root.tagSelIdx = root._currentFileTags.length > 0 ? 0 : -1
-                                    root.tagMode   = true
-                                    break
-                                case Qt.Key_A:      root.autoTag();    break
                                 case Qt.Key_R: {
                                     const c = root._cat()
                                     if (c) root._setRandomCat(c.name)
@@ -447,6 +359,17 @@ Item {
                             }
                             event.accepted = true
                         }
+                    }
+
+                    // ── Generating-thumbnails overlay ─────────────
+                    Text {
+                        visible: root._genThumbsRunning
+                        anchors.centerIn: parent
+                        text: "preparing…"
+                        color: Theme.subtext
+                        font.family: "JetBrains Mono"
+                        font.pixelSize: 12
+                        opacity: 0.6
                     }
 
                     // ── Category ListView (vertical) ──────────────
@@ -514,15 +437,6 @@ Item {
                                     }
                                 }
 
-                                // Auto-tagging spinner on current row
-                                Text {
-                                    visible: row.isCurrent && root._autoTagging
-                                    anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 8 }
-                                    text: "…"
-                                    color: Theme.green
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: 10
-                                }
                             }
 
                             Rectangle {
@@ -548,7 +462,7 @@ Item {
                                 model: Math.max(n, 1) * 999
 
                                 currentIndex: root.catBase * Math.max(n, 1)
-                                              + (root.catOffsets[row.index] || 0)
+                                              + ((root.catOffsets || {})[row.index] || 0)
 
                                 highlightMoveDuration:   root._snapScroll ? 0 : 220
                                 highlightRangeMode:      ListView.StrictlyEnforceRange
@@ -589,8 +503,8 @@ Item {
 
                                         Image {
                                             anchors.fill: parent
-                                            source: hList.n > 0
-                                                ? "file://" + root.wpDir + hList.cat.files[thumb.ri]
+                                            source: (root.thumbDir && hList.n > 0)
+                                                ? "file://" + root.thumbDir + hList.cat.files[thumb.ri]
                                                 : ""
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
@@ -609,75 +523,17 @@ Item {
                                             }
                                         }
 
-                                        // Existing tag chips — always visible on active thumb
-                                        Flow {
-                                            visible: thumb.active && root._currentFileTags.length > 0
-                                            anchors {
-                                                left: parent.left; right: parent.right
-                                                bottom: parent.bottom
-                                                leftMargin: 8; rightMargin: 8; bottomMargin: 7
-                                            }
-                                            spacing: 4
-                                            layoutDirection: Qt.RightToLeft
-
-                                            Repeater {
-                                                model: root._currentFileTags
-                                                Rectangle {
-                                                    required property string modelData
-                                                    required property int index
-                                                    property bool sel: root.tagMode && root.tagSelIdx === index
-
-                                                    height: 17
-                                                    width: chipTxt.implicitWidth + 10
-                                                    radius: 4
-                                                    color: sel ? Qt.rgba(0.85, 0.15, 0.15, 0.88)
-                                                               : Qt.rgba(0, 0, 0, 0.58)
-                                                    border.color: sel ? "#ff5555" : Theme.purple
-                                                    border.width: sel ? 1.5 : 0.8
-                                                    Behavior on color       { ColorAnimation { duration: 120 } }
-                                                    Behavior on border.color { ColorAnimation { duration: 120 } }
-
-                                                    Text {
-                                                        id: chipTxt
-                                                        anchors.centerIn: parent
-                                                        text: modelData
-                                                        color: "white"
-                                                        font.family: "JetBrains Mono"
-                                                        font.pixelSize: 9
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        // Input mode bar (type new tag)
+                                        // Tagged indicator — only in the "all" category
                                         Rectangle {
-                                            visible: thumb.active && root.tagMode && root.tagSelIdx < 0
-                                            anchors { left: parent.left; right: parent.right; top: parent.top }
-                                            height: 24
-                                            color: Qt.rgba(0, 0, 0, 0.72)
-                                            Text {
-                                                anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                                                text: "+" + root.tagInput + "█"
-                                                color: Theme.green
-                                                font.family: "JetBrains Mono"
-                                                font.pixelSize: 10
-                                            }
+                                            visible: row.modelData.name === "all"
+                                                && hList.n > 0
+                                                && !!(root._tags[hList.cat.files[thumb.ri]])
+                                            anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
+                                            width: 7; height: 7; radius: 4
+                                            color: Theme.green
+                                            opacity: 0.85
                                         }
 
-                                        // Browse mode bar (select tag to remove)
-                                        Rectangle {
-                                            visible: thumb.active && root.tagMode && root.tagSelIdx >= 0
-                                            anchors { left: parent.left; right: parent.right; top: parent.top }
-                                            height: 24
-                                            color: Qt.rgba(0, 0, 0, 0.72)
-                                            Text {
-                                                anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                                                text: "← → select  del: remove  type: add"
-                                                color: Theme.subtext
-                                                font.family: "JetBrains Mono"
-                                                font.pixelSize: 9
-                                            }
-                                        }
                                     }
                                 }
                             }

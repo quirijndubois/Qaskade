@@ -101,6 +101,20 @@ FloatingWindow {
     property bool vimSearchMode: false
     property bool immediateSearch: false
     property var wallpaperTags: {}
+    property string wpTagHints:      ""
+    property int    wpMinCat:        1
+    property bool   wpTagging:       false
+    property bool   wpHintsEditMode: false
+    property string wpHintsInput:    ""
+    property int    wpTagged:        0
+    property int    wpTotal:         0
+    property bool   wpGenThumb:      false
+    property bool   wpOllamaOk:      false
+    property var    wpOllamaModels:  []
+    property string wpVisionModel:   "moondream"
+    property int    wpVisionModelIdx: 0
+    property string wpTextModel:     "qwen2.5-coder:7b"
+    property int    wpTextModelIdx:  0
 
     readonly property var monitorColors: [Theme.blue, Theme.green, Theme.yellow, Theme.teal, Theme.purple, Theme.red]
 
@@ -148,6 +162,8 @@ FloatingWindow {
         if (page !== "wifi") { root.wifiPasswordMode = false; root.wifiPasswordInput = ""; root.wifiPendingNetwork = null; root.wifiError = "" }
         if (page === "layout") layoutQueryProc.running = true
         if (page === "clipboard") { clipDaemonProc.running = true; clipListProc.running = true }
+        if (page === "wallpapers") { loadWpConfigProc.running = false; loadWpConfigProc.running = true }
+        if (page !== "wallpapers") { root.wpHintsEditMode = false; root.wpHintsInput = "" }
         if (page === "monitor_layout") {
             root.selectedMonitorIdx = 0
             wsRulesProc.running = false
@@ -363,10 +379,11 @@ FloatingWindow {
     ]
 
     readonly property var appearanceItems: [
-        { id: "palette",   label: "palette",      icon: "" },
-        { id: "design",    label: "bar design",   icon: "" },
-        { id: "bar",        label: "bar elements", icon: "" },
-        { id: "lockscreen", label: "lock screen",  icon: "󰌮" },
+        { id: "palette",    label: "palette",       icon: "" },
+        { id: "design",     label: "bar design",    icon: "" },
+        { id: "bar",        label: "bar elements",  icon: "" },
+        { id: "lockscreen", label: "lock screen",   icon: "󰌮" },
+        { id: "wallpapers", label: "wallpaper tags", icon: "" },
     ]
 
 
@@ -938,13 +955,116 @@ FloatingWindow {
 
     Process {
         id: loadTagsProc
-        command: ["sh", "-c", "cat \"$HOME/.config/quickshell/wallpaper-tags.json\" 2>/dev/null"]
+        command: ["sh", "-c",
+            "cat \"$HOME/wallpapers/.tags\" 2>/dev/null || echo '{}'"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 try { root.wallpaperTags = JSON.parse(this.text.trim()) } catch(e) {}
             }
         }
+    }
+
+    Process {
+        id: loadWpConfigProc
+        command: ["sh", "-c",
+            "printf '%s' \"$(cat \"$HOME/wallpapers/.tag-hints\" 2>/dev/null)\"; echo '---'; " +
+            "cat \"$HOME/wallpapers/.min-cat-size\" 2>/dev/null || echo '1'; echo '---'; " +
+            "ls \"$HOME/wallpapers/\" 2>/dev/null | grep -icE '\\.(jpg|jpeg|png|webp|gif)$'; echo '---'; " +
+            "python3 -c \"import sys,json; d=json.load(open(sys.argv[1])); print(len(d))\" \"$HOME/wallpapers/.tags\" 2>/dev/null || echo '0'; echo '---'; " +
+            "cat \"$HOME/wallpapers/.vision-model\" 2>/dev/null || echo 'moondream'; echo '---'; " +
+            "cat \"$HOME/wallpapers/.text-model\" 2>/dev/null || echo 'qwen2.5-coder:7b'"
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parts = this.text.split("---")
+                root.wpTagHints = (parts[0] || "").trim()
+                const n = parseInt((parts[1] || "1").trim())
+                root.wpMinCat = isNaN(n) ? 1 : Math.max(1, n)
+                const total = parseInt((parts[2] || "0").trim())
+                root.wpTotal = isNaN(total) ? 0 : total
+                const tagged = parseInt((parts[3] || "0").trim())
+                root.wpTagged = isNaN(tagged) ? 0 : tagged
+                root.wpVisionModel = (parts[4] || "moondream").trim()
+                root.wpTextModel   = (parts[5] || "qwen2.5-coder:7b").trim()
+                ollamaCheckProc.running = false
+                ollamaCheckProc.running = true
+            }
+        }
+    }
+
+    Process {
+        id: saveWpHintsProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+    }
+
+    Process {
+        id: saveWpMinCatProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+    }
+
+    Process {
+        id: wpAutoTagProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        onRunningChanged: {
+            root.wpTagging = running
+            if (!running) {
+                loadWpConfigProc.running = false
+                loadWpConfigProc.running = true
+            }
+        }
+    }
+
+    Process {
+        id: wpGenThumbProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        onRunningChanged: { root.wpGenThumb = running }
+    }
+
+    Process {
+        id: ollamaCheckProc
+        command: ["sh", "-c", "curl -sf http://localhost:11434/api/tags 2>/dev/null || echo 'ERR'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const txt = this.text.trim()
+                if (txt === "ERR") {
+                    root.wpOllamaOk = false
+                    root.wpOllamaModels = []
+                    return
+                }
+                try {
+                    const data = JSON.parse(txt)
+                    const names = data.models.map(m => m.name)
+                    root.wpOllamaModels = names
+                    root.wpOllamaOk = names.length > 0
+                    const vi = names.indexOf(root.wpVisionModel)
+                    root.wpVisionModelIdx = vi >= 0 ? vi : 0
+                    if (vi < 0 && names.length) root.wpVisionModel = names[0]
+                    const ti = names.indexOf(root.wpTextModel)
+                    root.wpTextModelIdx = ti >= 0 ? ti : 0
+                    if (ti < 0 && names.length) root.wpTextModel = names[0]
+                } catch(e) {
+                    root.wpOllamaOk = false
+                    root.wpOllamaModels = []
+                }
+            }
+        }
+    }
+
+    Process {
+        id: saveVisionModelProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+    }
+
+    Process {
+        id: saveTextModelProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
     }
 
     signal clipboardCopyTriggered()
@@ -1416,7 +1536,7 @@ FloatingWindow {
     function saveWallpaperTags() {
         const safe = JSON.stringify(root.wallpaperTags).replace(/'/g, "'\\''")
         saveTagsProc.command = ["sh", "-c",
-            "mkdir -p \"$HOME/.config/quickshell\" && printf '%s' '" + safe + "' > \"$HOME/.config/quickshell/wallpaper-tags.json\""]
+            "printf '%s' '" + safe + "' > \"$HOME/wallpapers/.tags\""]
         saveTagsProc.running = false
         saveTagsProc.running = true
     }
@@ -1434,6 +1554,71 @@ FloatingWindow {
         root.wallpaperTags = updated
         root.saveWallpaperTags()
     }
+
+    function startWpAutoTag() {
+        if (root.wpTagging || !root.homeDir || !root.wpOllamaOk) return
+        wpAutoTagProc.command = ["python3",
+            root.homeDir + "/.config/quickshell/scripts/auto-tag-wallpaper.py",
+            "--min-cat", String(root.wpMinCat),
+            "--vision-model", root.wpVisionModel,
+            "--text-model", root.wpTextModel,
+            "--retag"]
+        wpAutoTagProc.running = false
+        wpAutoTagProc.running = true
+    }
+
+    function setWpVisionModel(dir) {
+        const n = root.wpOllamaModels.length
+        if (!n) return
+        const i = ((root.wpVisionModelIdx + dir) % n + n) % n
+        root.wpVisionModelIdx = i
+        root.wpVisionModel = root.wpOllamaModels[i]
+        const safe = root.wpVisionModel.replace(/'/g, "'\\''")
+        saveVisionModelProc.command = ["sh", "-c",
+            "printf '%s' '" + safe + "' > \"$HOME/wallpapers/.vision-model\""]
+        saveVisionModelProc.running = false
+        saveVisionModelProc.running = true
+    }
+
+    function setWpTextModel(dir) {
+        const n = root.wpOllamaModels.length
+        if (!n) return
+        const i = ((root.wpTextModelIdx + dir) % n + n) % n
+        root.wpTextModelIdx = i
+        root.wpTextModel = root.wpOllamaModels[i]
+        const safe = root.wpTextModel.replace(/'/g, "'\\''")
+        saveTextModelProc.command = ["sh", "-c",
+            "printf '%s' '" + safe + "' > \"$HOME/wallpapers/.text-model\""]
+        saveTextModelProc.running = false
+        saveTextModelProc.running = true
+    }
+
+    function startWpGenThumbs() {
+        if (root.wpGenThumb || !root.homeDir) return
+        wpGenThumbProc.command = ["sh",
+            root.homeDir + "/.config/quickshell/scripts/gen-thumbs.sh"]
+        wpGenThumbProc.running = false
+        wpGenThumbProc.running = true
+    }
+
+    function saveWpHints(hints) {
+        root.wpTagHints = hints.trim()
+        const safe = hints.replace(/'/g, "'\\''")
+        saveWpHintsProc.command = ["sh", "-c",
+            "printf '%s' '" + safe + "' > \"$HOME/wallpapers/.tag-hints\""]
+        saveWpHintsProc.running = false
+        saveWpHintsProc.running = true
+    }
+
+    function setWpMinCat(n) {
+        n = Math.max(1, n)
+        root.wpMinCat = n
+        saveWpMinCatProc.command = ["sh", "-c",
+            "printf '%d' " + n + " > \"$HOME/wallpapers/.min-cat-size\""]
+        saveWpMinCatProc.running = false
+        saveWpMinCatProc.running = true
+    }
+
 
     Connections {
         target: awwwProc
@@ -1458,7 +1643,7 @@ FloatingWindow {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }
 
-        readonly property var level2Pages: ["palette", "design", "bar", "layout", "monitor_layout", "lockscreen"]
+        readonly property var level2Pages: ["palette", "design", "bar", "layout", "monitor_layout", "lockscreen", "wallpapers"]
         property real subOffset: level2Pages.indexOf(root.page) >= 0 ? 1.0 : 0.0
         Behavior on subOffset {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -1487,6 +1672,23 @@ FloatingWindow {
                     root.wifiPendingNetwork = null
                 } else if (event.text.length > 0) {
                     root.wifiPasswordInput += event.text
+                }
+                event.accepted = true
+                return
+            }
+
+            // Wallpaper tag-hints edit mode
+            if (root.wpHintsEditMode) {
+                if (event.key === Qt.Key_Escape) {
+                    root.wpHintsEditMode = false
+                    root.wpHintsInput = ""
+                } else if (event.key === Qt.Key_Backspace) {
+                    root.wpHintsInput = root.wpHintsInput.slice(0, -1)
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    root.saveWpHints(root.wpHintsInput)
+                    root.wpHintsEditMode = false
+                } else if (event.text.length > 0) {
+                    root.wpHintsInput += event.text
                 }
                 event.accepted = true
                 return
@@ -1605,6 +1807,7 @@ FloatingWindow {
                              : root.page === "notifications"  ? Math.max(0, notifListView.count - 1)
                              : root.page === "system"         ? Math.max(0, root.systemSettingItems.length - 1)
                              : root.page === "lockscreen"     ? root.lockscreenOptions.length - 1
+                             : root.page === "wallpapers"     ? 5
                              : root.page === "power"          ? root.powerItems.length - 1
                              : root.page === "emoji"          ? Math.max(0, root.emojiList.length - 1)
                              : 0
@@ -1670,6 +1873,13 @@ FloatingWindow {
                         const mon = root.systemMonitors[root.selectedMonitorIdx]
                         if (mon && event.key === Qt.Key_Left) root.setMonitorPosition(mon, -50, 0)
                         else if (mon && event.key === Qt.Key_Right) root.setMonitorPosition(mon, 50, 0)
+                        event.accepted = true
+                        return
+                    } else if (root.page === "wallpapers") {
+                        const dir = event.key === Qt.Key_Right ? 1 : -1
+                        if (root.selectedIndex === 0) root.setWpMinCat(root.wpMinCat + dir)
+                        else if (root.selectedIndex === 2) root.setWpVisionModel(dir)
+                        else if (root.selectedIndex === 3) root.setWpTextModel(dir)
                         event.accepted = true
                         return
                     } else if (root.page === "system") {
@@ -1855,6 +2065,15 @@ FloatingWindow {
             } else if (root.page === "lockscreen") {
                 const ld = root.lockscreenOptions[root.selectedIndex]
                 if (ld) Theme.lockDesign = ld.id
+            } else if (root.page === "wallpapers") {
+                if (root.selectedIndex === 1) {
+                    root.wpHintsInput = root.wpTagHints
+                    root.wpHintsEditMode = true
+                } else if (root.selectedIndex === 4 && !root.wpTagging) {
+                    root.startWpAutoTag()
+                } else if (root.selectedIndex === 5 && !root.wpGenThumb) {
+                    root.startWpGenThumbs()
+                }
             } else if (root.page === "layout") {
                 const l = root.layoutOptions[root.selectedIndex]
                 if (l) root.applyLayout(l.id)
@@ -3174,7 +3393,7 @@ FloatingWindow {
                                 anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
                                 visible: sysDelegate.modelData.type === "monitor_toggle"
                                 property var entry: sysDelegate.modelData
-                                property bool isOn: entry.monitor && entry.monitor.enabled
+                                property bool isOn: !!(entry.monitor && entry.monitor.enabled)
                                 property bool canDisable: root.systemMonitors.filter(m => m.enabled).length > 1
                                 width: 34; height: 18; radius: 9
                                 opacity: (!isOn && !canDisable) ? 0.35 : 1.0
@@ -4307,6 +4526,251 @@ FloatingWindow {
                             color: Theme.green
                             font.family: "JetBrains Mono"
                             font.pixelSize: sf
+                        }
+                    }
+                }
+            }
+
+            // ── Wallpaper Tags ────────────────────────────────────
+            Item {
+                anchors.fill: parent
+                visible: root.activeSubPage === "wallpapers"
+
+                Rectangle {
+                    id: wpTagsHeader
+                    width: parent.width
+                    height: 44
+                    color: Theme.surface
+
+                    Row {
+                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                        spacing: 14
+                        Text {
+                            text: "< back"
+                            color: Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 1
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        Text {
+                            text: "wallpaper tags"
+                            color: Theme.purple
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf + 1
+                            font.bold: true
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    Column {
+                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+
+                        Text {
+                            anchors.right: parent.right
+                            text: root.wpTagged + " / " + root.wpTotal + " tagged"
+                            color: root.wpTagging ? Theme.green : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 2
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                        }
+
+                        Text {
+                            anchors.right: parent.right
+                            text: root.wpOllamaOk ? "● ollama" : "● ollama unavailable"
+                            color: root.wpOllamaOk ? Theme.green : Theme.red
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 3
+                            Behavior on color { ColorAnimation { duration: 200 } }
+                        }
+                    }
+                }
+
+                Rectangle { id: wpTagsDivider; anchors.top: wpTagsHeader.bottom; width: parent.width; height: 1; color: Theme.border }
+
+                Column {
+                    anchors { left: parent.left; right: parent.right; top: wpTagsDivider.bottom }
+
+                    // Row 0: min category size
+                    Rectangle {
+                        width: parent.width
+                        height: 52
+                        color: root.selectedIndex === 0 ? Theme.border : "transparent"
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: (root.selectedIndex === 0 ? "> " : "  ") + "min category size"
+                            color: root.selectedIndex === 0 ? Theme.text : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: "< " + root.wpMinCat + " >"
+                            color: root.selectedIndex === 0 ? Theme.blue : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    // Row 1: tag hints (auto-height, wrapping)
+                    Rectangle {
+                        width: parent.width
+                        height: hintsCol.implicitHeight + 24
+                        color: root.selectedIndex === 1 ? Theme.border : "transparent"
+
+                        Column {
+                            id: hintsCol
+                            anchors {
+                                left: parent.left; leftMargin: 20
+                                right: parent.right; rightMargin: 20
+                                top: parent.top; topMargin: 12
+                            }
+                            spacing: 6
+
+                            Row {
+                                spacing: 8
+                                Text {
+                                    text: (root.selectedIndex === 1 ? "> " : "  ") + "tag hints"
+                                    color: root.selectedIndex === 1 ? Theme.text : Theme.subtext
+                                    font.family: "JetBrains Mono"
+                                    font.pixelSize: sf
+                                }
+                                Text {
+                                    visible: root.selectedIndex === 1 && !root.wpHintsEditMode
+                                    text: "(enter to edit)"
+                                    color: Theme.subtext
+                                    font.family: "JetBrains Mono"
+                                    font.pixelSize: sf - 3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Text {
+                                width: parent.width
+                                text: root.wpHintsEditMode
+                                    ? root.wpHintsInput + "█"
+                                    : (root.wpTagHints || "(none)")
+                                color: root.wpHintsEditMode ? Theme.green
+                                     : root.wpTagHints      ? Theme.purple
+                                     : Theme.subtext
+                                font.family: "JetBrains Mono"
+                                font.pixelSize: sf - 2
+                                font.italic: !root.wpTagHints && !root.wpHintsEditMode
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    // Row 2: vision model
+                    Rectangle {
+                        width: parent.width
+                        height: 52
+                        color: root.selectedIndex === 2 ? Theme.border : "transparent"
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: (root.selectedIndex === 2 ? "> " : "  ") + "vision model"
+                            color: root.selectedIndex === 2 ? Theme.text : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: root.wpOllamaOk
+                                ? "< " + root.wpVisionModel + " >"
+                                : "unavailable"
+                            color: root.wpOllamaOk
+                                ? (root.selectedIndex === 2 ? Theme.blue : Theme.subtext)
+                                : Theme.red
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 2
+                        }
+                    }
+
+                    // Row 3: text model
+                    Rectangle {
+                        width: parent.width
+                        height: 52
+                        color: root.selectedIndex === 3 ? Theme.border : "transparent"
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: (root.selectedIndex === 3 ? "> " : "  ") + "text model"
+                            color: root.selectedIndex === 3 ? Theme.text : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: root.wpOllamaOk
+                                ? "< " + root.wpTextModel + " >"
+                                : "unavailable"
+                            color: root.wpOllamaOk
+                                ? (root.selectedIndex === 3 ? Theme.blue : Theme.subtext)
+                                : Theme.red
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 2
+                        }
+                    }
+
+                    // Row 4: retag all wallpapers
+                    Rectangle {
+                        width: parent.width
+                        height: 52
+                        color: root.selectedIndex === 4 ? Theme.border : "transparent"
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: (root.selectedIndex === 4 ? "> " : "  ") + "retag all wallpapers"
+                            color: root.selectedIndex === 4 ? Theme.text : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: root.wpTagging ? "tagging…"
+                                : !root.wpOllamaOk ? "ollama unavailable"
+                                : "enter to start"
+                            color: root.wpTagging ? Theme.green
+                                : !root.wpOllamaOk ? Theme.red
+                                : (root.selectedIndex === 4 ? Theme.blue : Theme.subtext)
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 2
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                    }
+
+                    // Row 5: generate thumbnails
+                    Rectangle {
+                        width: parent.width
+                        height: 52
+                        color: root.selectedIndex === 5 ? Theme.border : "transparent"
+
+                        Text {
+                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: (root.selectedIndex === 5 ? "> " : "  ") + "generate thumbnails"
+                            color: root.selectedIndex === 5 ? Theme.text : Theme.subtext
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        Text {
+                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
+                            text: root.wpGenThumb ? "generating…" : "enter to start"
+                            color: root.wpGenThumb ? Theme.green : (root.selectedIndex === 5 ? Theme.blue : Theme.subtext)
+                            font.family: "JetBrains Mono"
+                            font.pixelSize: sf - 2
+                            Behavior on color { ColorAnimation { duration: 150 } }
                         }
                     }
                 }
