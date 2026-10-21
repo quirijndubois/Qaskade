@@ -59,17 +59,14 @@ Programs started on login:
 
 ### Window Rules
 
-The settings overlay is pinned and centered via a window rule:
+Client maximize requests are ignored, and no app may inhibit idle:
 
 ```lua
-hl.window_rule({
-    name = "qs-settings",
-    match = { class = "org.quickshell", title = "Quickshell Settings" },
-    float = true,
-    pin   = true,
-    move  = "center center",
-})
+hl.window_rule({ name = "suppress-maximize-events", match = { class = ".*" }, suppress_event = "maximize" })
+hl.window_rule({ match = { class = ".*" }, idle_inhibit = "none" })
 ```
+
+The settings overlay needs no rule - it is part of the bar's layer surface, not a window.
 
 ### Input
 

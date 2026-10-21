@@ -4,7 +4,7 @@ local browser = "firefox"
 
 local mainMod = "ALT"
 
-hl.bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "m+1" }))
+hl.bind(mainMod .. " + Tab", hl.dsp.focus({ workspace = "previous" }))
 hl.bind(mainMod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
 
 hl.bind(mainMod .. " + Q", hl.dsp.exec_cmd(terminal))

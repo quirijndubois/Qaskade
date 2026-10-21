@@ -1,3 +1,5 @@
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
-hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+-- KDE platform theme (plasma-integration) so Qt apps repaint live when the
+-- shell palette changes; colors come from kdeglobals, style is Breeze.
+hl.env("QT_QPA_PLATFORMTHEME", "kde")

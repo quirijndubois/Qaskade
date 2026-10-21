@@ -1,20 +1,20 @@
 import QtQuick
 import Quickshell.Io
 import "../"
+import "../components"
 
 BarText {
     id: root
-    color: Theme.red
-
     property int memUsage: 0
     property real memUsedGB: 0
     property real memTotalGB: 0
     property var topProcs: []
 
-    text: "mem " + memUsage + "%"
+    caption: "MEM"
+    text: memUsage + "%"
+    color: memUsage > 85 ? Theme.red : Theme.text
     moduleId: "memory"
     modulePopup: popup
-    popupHeight: 210
 
     Process {
         id: memProc
@@ -70,31 +70,18 @@ BarText {
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: 6
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            Row {
-                spacing: 8
-                Text {
-                    text: root.memUsage + "%"
-                    color: Theme.red
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-                Text {
-                    anchors.bottom: parent.bottom; anchors.bottomMargin: 3
-                    text: root.memUsedGB + " / " + root.memTotalGB + " GB"
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 10
-                }
+            PopupHeader {
+                title: "Memory"
+                subtitle: root.memUsedGB + " of " + root.memTotalGB + " GB used"
+                detail: root.memUsage + "%"
             }
 
-            UsageBar {
+            Meter {
                 width: parent.width
                 value: root.memUsage
-                fillColor: Theme.teal
                 warnAt: 65
                 critAt: 85
             }
@@ -102,7 +89,6 @@ BarText {
             ProcessList {
                 width: parent.width
                 processes: root.topProcs
-                accentColor: Theme.red
                 unit: " MB"
             }
         }

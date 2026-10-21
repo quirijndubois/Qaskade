@@ -5,13 +5,13 @@ title: Bar Modules
 
 # Bar Modules
 
-Each module is an independent QML file extending `BarText` (or `Item` for graphical modules). All modules can be toggled independently via **Settings → Appearance**.
+Each module is an independent QML file extending `BarText` (or `Item` for drawn modules like workspaces, battery and network). Each module can be placed left, center or right, or turned off, via **Settings → Appearance → Bar layout**.
 
 ---
 
 ## CPU (`CpuModule.qml`)
 
-**User:** Shows aggregate usage as `cpu 42%`. Hover to see a per-core bar chart and top 5 processes by CPU.
+**User:** Shows aggregate usage as `CPU 42%` (the caption is dim, the value turns red above 80%). Hover to see a per-core bar chart and top 5 processes by CPU.
 
 **Internals:** Polls `/proc/stat` every 2s via `grep '^cpu' /proc/stat`. The first line is the aggregate; remaining lines are per-core. Usage delta:
 
@@ -25,7 +25,7 @@ where `dIdle = idle + iowait` and `dTotal` is sum of all fields. Previous snapsh
 
 ## Memory (`MemoryModule.qml`)
 
-**User:** Shows used memory as `mem 8.1G`. Hover to see a usage bar and top 5 processes by RSS.
+**User:** Shows used memory as `MEM 27%`. Hover to see used/total GB, a usage bar and top 5 processes by RSS.
 
 **Internals:** Reads `/proc/meminfo` every 5s with `awk '/MemTotal:/{t=$2} /MemAvailable:/{a=$2}'`. `MemAvailable` accounts for page cache and reclaimable slabs, giving a realistic "actually available" figure. Used = Total - Available. Top processes use `ps --sort=-rss` in MB, run only while the popup is open.
 
@@ -33,46 +33,41 @@ where `dIdle = idle + iowait` and `dTotal` is sum of all fields. Previous snapsh
 
 ## GPU (`GpuModule.qml`)
 
-**User:** Shows NVIDIA GPU utilization as `gpu 34%`. Hover for utilization bar + VRAM usage + top GPU processes by VRAM.
+**User:** Shows NVIDIA GPU utilization as `GPU 34%`. Hover for utilization bar + VRAM usage + top GPU processes by VRAM.
 
-**Internals:** Runs `nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits` every 2s. Falls back to `0, 0, 0` if `nvidia-smi` is absent. Top GPU processes use `nvidia-smi --query-compute-apps=name,used_memory`, run only while the popup is open, refreshed every 4s. Bar color thresholds: blue → yellow at 50%, yellow → red at 80%.
+**Internals:** Runs `nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits` every 2s. Falls back to `0, 0, 0` if `nvidia-smi` is absent. Top GPU processes use `nvidia-smi --query-compute-apps=name,used_memory`, run only while the popup is open, refreshed every 4s. Meter thresholds: yellow at 50%, red at 80%.
 
 ---
 
 ## Battery (`BatteryModule.qml`)
 
-**User:** Shows `bat 87%`, `bat +87%` (charging), or `bat =87%` (full). Hover for a percentage bar and time remaining/to full.
+**User:** A drawn battery whose fill tracks the charge: green while charging, red at 15% or lower. Hidden on machines without a battery. Hover for the percentage and time remaining/to full.
 
-**Internals:** Uses `Quickshell.Services.UPower` - Quickshell's native UPower D-Bus binding. The `UPower.displayDevice` represents the primary battery. Percentage is read from `device.percentage` (normalized to 0–100 with an energy fallback if the value is in 0–1 range). Time remaining comes from `device.timeToEmpty` / `device.timeToFull` (seconds), formatted to `Xh Ym`. State enum `UPowerDeviceState` drives the prefix and bar color: green → yellow at 40%, yellow → red at 20%.
+**Internals:** Uses `Quickshell.Services.UPower` - Quickshell's native UPower D-Bus binding. The `UPower.displayDevice` represents the primary battery. Percentage is read from `device.percentage` (normalized to 0–100 with an energy fallback if the value is in 0–1 range). Time remaining comes from `device.timeToEmpty` / `device.timeToFull` (seconds), formatted to `Xh Ym`. State enum `UPowerDeviceState` drives the fill color and popup text.
 
 ---
 
 ## Clock (`ClockModule.qml`)
 
-**User:** Shows `HH:MM`. Hover to see the full date (`Wednesday, June 14`).
+**User:** Shows `HH:MM`. Hover to see the date and a calendar of the current month with today highlighted.
 
-**Internals:** A 1s `Timer` updates two strings using Qt's date formatting:
-```qml
-Qt.formatTime(new Date(), "hh:mm")
-Qt.formatDate(new Date(), "dddd, MMMM d")
-```
-No system calls - all in-process.
+**Internals:** A 1s `Timer` updates a `now` date; the bar and popup format it with `Qt.formatTime` / `Qt.formatDate`. The month grid is computed in QML (Monday first). No system calls - all in-process.
 
 ---
 
 ## Audio (`AudioModule.qml`)
 
-**User:** Shows `vol 72%` or `vol mute`. Hover to see a master volume slider with a draggable knob and per-app volume sliders with live peak meters. Right-click opens `pavucontrol`.
+**User:** A speaker glyph that reflects the volume level. Scroll to change volume, click to mute, right-click to open `pavucontrol`. Hover for a master volume slider (up to 150%) and per-app volume sliders.
 
 **Internals:** Uses Quickshell's PipeWire binding. `Pipewire.defaultAudioSink` is kept alive with `PwObjectTracker`. Per-app streams are collected by watching `Pipewire.nodes` for `PwNodeType.AudioOutStream`. Node changes are debounced with `Qt.callLater` to batch rapid updates into a single refresh.
 
-Peak meters use `PwNodePeakMonitor` per stream - enabled only when `BarHover.activeModule === "audio"`. Bar turns red above 85% peak. Master volume slider allows dragging to 150% (red fill above 100%). Popup height is dynamic: 104px with no streams, 264px with streams.
+The master volume slider allows dragging to 150% (red fill above 100%). The popup height follows its content.
 
 ---
 
 ## Music / MPRIS (`MusicModule.qml`)
 
-**User:** Shows 5 animated dancing bars while music plays, static short bars when paused, hidden when stopped. Hover for track title, artist, progress bar with seek, and transport controls.
+**User:** Shows 5 animated bars while music plays, short dim bars when paused, hidden when stopped. Hover for album art, track title, artist, a seekable progress bar and transport controls.
 
 **Internals:** Uses `Quickshell.Services.Mpris`. Player selection prefers a playing player, falls back to any player. A 50ms `Timer` drives 5 amplitude values using offset sine waves:
 
@@ -86,7 +81,7 @@ Each bar has a different frequency and offset to avoid lockstep movement. Seek p
 
 ## Bluetooth (`BluetoothModule.qml`)
 
-**User:** Shows `bt off`, `bt on`, or `bt 2` (connected device count). Hover to see connected device names and a toggle. Click opens `blueman-manager`.
+**User:** A Bluetooth glyph: dim when off, a "connected" variant when a device is connected. Hover to see connected device names and an on/off switch. Click opens `blueman-manager`.
 
 **Internals:** Uses Quickshell's native `Quickshell.Bluetooth` binding - no shell commands. `Bluetooth.defaultAdapter` exposes the adapter state and device list. Connected device count is maintained by a `Repeater` over `defaultAdapter.devices`, watching each device's `connected` property with `onConnChanged`. `refreshCount()` is called whenever any device's connection state changes.
 
@@ -96,20 +91,20 @@ Toggle in the popup sets `Bluetooth.defaultAdapter.enabled` directly.
 
 ## Network (`NetworkModule.qml`)
 
-**User:** Shows WiFi SSID (truncated to 9 chars), `eth` for Ethernet, or `no net`. Hover for full SSID and IP address. Click opens `nm-connection-editor`.
+**User:** Wi-Fi shows as four signal bars, Ethernet as a cable glyph, no connection as a crossed-out Wi-Fi glyph. Hover for the network name, signal strength and IP address. Click opens `nm-connection-editor`.
 
 **Internals:** Two shell processes run at startup and every 10s:
 
-- **SSID/type:** `iwgetid -r` gets the WiFi SSID. If empty, `nmcli dev` checks for an active ethernet connection.
+- **SSID/signal/type:** `nmcli -t -f ACTIVE,SIGNAL,SSID dev wifi list --rescan no` reads the active Wi-Fi network from NetworkManager's cache (no rescans). If there is none, `nmcli -t -f TYPE,STATE dev` checks for a connected ethernet device.
 - **IP:** `ip -4 addr show $(ip route | awk '/default/{print $5; exit}')` - resolves the default route's interface then reads its IPv4 address.
 
-SSID is stored in full (`ssidFull`) for the popup, displayed truncated in the bar.
+Signal strength maps to 1–4 bars at 25/50/75%.
 
 ---
 
 ## Sleep Inhibit (`InhibitModule.qml` + `InhibitState.qml`)
 
-**User:** A moon icon (☾) in the bar. Dim when inactive, yellow when active. Click to toggle. Prevents the system from sleeping or locking while active.
+**User:** A coffee cup in the bar. Dim when inactive, accent-colored when active. Click to toggle. Prevents the system from sleeping or locking while active.
 
 **Internals:** `InhibitState.qml` is a `pragma Singleton` holding a single `inhibited: bool`. `InhibitModule.qml` reads and writes it on click.
 
@@ -144,11 +139,11 @@ The `_fb` (fallback index) counter increments on each `Image.Error` status until
 
 ## Workspaces (`WorkspacesModule.qml`)
 
-**User:** Numbered workspace buttons for the current monitor. Click to switch. Active workspace has an animated sliding highlight.
+**User:** One dot per workspace on the current monitor; the focused workspace stretches into an accent-colored pill. Click a dot to switch.
 
-**Internals:** Uses `Quickshell.Hyprland.workspaces` as the Repeater model, filtered by `modelData.monitor === root.monitor`. The animated highlight is a `Rectangle` whose `x` follows `highlightX` with a 200ms `OutCubic` `NumberAnimation`. `highlightX` updates in `onIsFocusedChanged` via `Qt.callLater` to ensure the delegate's layout is settled before reading its position.
+**Internals:** Uses `Quickshell.Hyprland.workspaces` as the Repeater model, filtered by `modelData.monitor === root.monitor` (special workspaces with negative ids are hidden). Each dot animates its width when it gains or loses focus.
 
-The workspaces pill doubles as the notification center - hovering opens a popup with the 5 most recent notifications (see [Notifications](notifications.html)).
+The workspace dots double as the notification center - hovering opens a popup with the 5 most recent notifications (see [Notifications](notifications.html)).
 
 ---
 

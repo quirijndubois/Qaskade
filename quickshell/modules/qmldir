@@ -1,4 +1,5 @@
 AudioModule 1.0 AudioModule.qml
+BarRow 1.0 BarRow.qml
 BarText 1.0 BarText.qml
 BatteryModule 1.0 BatteryModule.qml
 BluetoothModule 1.0 BluetoothModule.qml
@@ -6,11 +7,13 @@ ClockModule 1.0 ClockModule.qml
 CpuModule 1.0 CpuModule.qml
 GpuModule 1.0 GpuModule.qml
 InhibitModule 1.0 InhibitModule.qml
+Island 1.0 Island.qml
 MemoryModule 1.0 MemoryModule.qml
+MenuModule 1.0 MenuModule.qml
 MusicModule 1.0 MusicModule.qml
 NetworkModule 1.0 NetworkModule.qml
+PopupHeader 1.0 PopupHeader.qml
 ProcessList 1.0 ProcessList.qml
-Separator 1.0 Separator.qml
 TrayModule 1.0 TrayModule.qml
-UsageBar 1.0 UsageBar.qml
 WorkspacesModule 1.0 WorkspacesModule.qml
+NotchView 1.0 NotchView.qml

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Services.Mpris
 import "../"
+import "../components"
 
 Item {
     id: root
@@ -43,20 +44,8 @@ Item {
     property string targetRow: "right"
     visible: player !== null && Theme.showMusic === targetRow
 
-    implicitWidth: bars.width + (Theme.design === "pills" ? 20 : 0)
-    implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : 18
-
-    // Pills background
-    Rectangle {
-        visible: Theme.design === "pills"
-        anchors.centerIn: parent
-        width: bars.width + 20
-        height: root.implicitHeight
-        radius: height / 2
-        color: Theme.surface
-        border.color: Theme.border
-        border.width: 1
-    }
+    implicitWidth: bars.width
+    implicitHeight: Theme.barHeight
 
     // ── Animated bars ─────────────────────────────────────────────
     property real phase: 0
@@ -83,7 +72,7 @@ Item {
         id: bars
         anchors.centerIn: parent
         width: 5 * 3 + 4 * 2   // 23px  (5 bars × 3px + 4 gaps × 2px)
-        height: root.implicitHeight
+        height: 14
 
         Repeater {
             model: 5
@@ -92,17 +81,17 @@ Item {
 
                 width: 3
                 x: index * 5
-                radius: 1
-                color: Theme.teal
-                anchors.bottom: parent.bottom
+                radius: 1.5
+                color: root.isPlaying ? Theme.text : Theme.subtext
+                anchors.verticalCenter: parent.verticalCenter
 
                 property real amp: root.amps[index]
 
                 height: {
                     const maxH = bars.height
                     const minH = 2
-                    if (root.isPlaying) return Math.max(minH, maxH * 0.75 * amp)
-                    if (root.isPaused)  return maxH * 0.25
+                    if (root.isPlaying) return Math.max(minH, maxH * amp)
+                    if (root.isPaused)  return 3
                     return minH
                 }
                 Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
@@ -114,7 +103,7 @@ Item {
     HoverHandler {
         onHoveredChanged: {
             if (hovered)
-                BarHover.show("music", popup, root.mapToItem(null, root.width / 2, 0).x, 0, root.screen)
+                BarHover.show("music", popup, root.mapToItem(null, root.width / 2, 0).x, root.screen)
             else
                 BarHover.startHide()
         }
@@ -151,131 +140,138 @@ Item {
     Component {
         id: popup
 
-        Item {
-            anchors.fill: parent
+        Column {
+            width: parent ? parent.width : 0
+            spacing: 14
 
-            Column {
-                anchors { left: parent.left; right: parent.right; top: parent.top }
-                spacing: 4
+            Row {
+                width: parent.width
+                spacing: 12
 
-                // Track title
-                Text {
-                    width: parent.width
-                    text: root.player ? (root.player.trackTitle || "Unknown track") : ""
-                    color: Theme.teal
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                    elide: Text.ElideRight
+                Rectangle {
+                    id: art
+                    width: 56; height: 56
+                    radius: Theme.radiusMd
+                    color: Theme.hover
+                    clip: true
+
+                    Image {
+                        anchors.fill: parent
+                        source: root.player ? (root.player.trackArtUrl || "") : ""
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        smooth: true
+                        visible: status === Image.Ready
+                    }
                 }
 
-                // Artist
-                Text {
-                    width: parent.width
-                    text: root.player ? (root.player.trackArtist || "") : ""
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 10
-                    elide: Text.ElideRight
-                    visible: text !== ""
+                Column {
+                    width: parent.width - art.width - parent.spacing
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
+
+                    Label {
+                        width: parent.width
+                        text: root.player ? (root.player.trackTitle || "Unknown track") : ""
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+
+                    Label {
+                        width: parent.width
+                        text: root.player ? (root.player.trackArtist || root.player.identity || "") : ""
+                        color: Theme.subtext
+                        font.pixelSize: Theme.textSm
+                        elide: Text.ElideRight
+                        visible: text !== ""
+                    }
                 }
             }
 
-            // Progress bar + time
-            Item {
-                anchors { left: parent.left; right: parent.right; bottom: controlRow.top; bottomMargin: 8 }
-                height: 16
+            Column {
+                width: parent.width
+                spacing: 6
 
                 property real progress: {
                     if (!root.player || root.player.length <= 0) return 0
                     return Math.min(1, root.displayPos / root.player.length)
                 }
 
-                Rectangle {
-                    id: progressTrack
-                    anchors { left: parent.left; right: timeLabel.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                    height: 4
-                    radius: 2
-                    color: Theme.border
-
-                    Rectangle {
-                        width: parent.width * parent.parent.progress
-                        height: parent.height
-                        radius: parent.radius
-                        color: Theme.teal
-                        Behavior on width { NumberAnimation { duration: 400 } }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: mouse => {
-                            if (root.player && root.player.canSeek) {
-                                const newPos = (mouse.x / width) * root.player.length
-                                root.player.position = newPos
-                                root.displayPos = newPos
-                            }
+                Slider {
+                    width: parent.width
+                    value: parent.progress
+                    onMoved: v => {
+                        if (root.player && root.player.canSeek) {
+                            const newPos = v * root.player.length
+                            root.player.position = newPos
+                            root.displayPos = newPos
                         }
                     }
                 }
 
-                Text {
-                    id: timeLabel
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    text: root.player && root.player.length > 0
-                          ? root.fmtTime(root.displayPos) + " / " + root.fmtTime(root.player.length)
-                          : ""
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 9
+                Item {
+                    width: parent.width
+                    height: 14
+                    visible: root.player && root.player.length > 0
+
+                    Label {
+                        anchors.left: parent.left
+                        text: root.fmtTime(root.displayPos)
+                        color: Theme.subtext
+                        font.pixelSize: Theme.textXs
+                    }
+                    Label {
+                        anchors.right: parent.right
+                        text: root.player ? root.fmtTime(root.player.length) : ""
+                        color: Theme.subtext
+                        font.pixelSize: Theme.textXs
+                    }
                 }
             }
 
-            // Controls
             Row {
-                id: controlRow
-                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
-                spacing: 16
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 28
 
-                Text {
-                    text: "<<"
-                    color: root.player && root.player.canGoPrevious ? Theme.text : Theme.border
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "previous"
+                    size: 22
+                    color: root.player && root.player.canGoPrevious ? Theme.text : Theme.track
+                    TapHandler {
                         enabled: root.player && root.player.canGoPrevious
-                        onClicked: root.player.previous()
+                        onTapped: root.player.previous()
                     }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
 
-                Text {
-                    text: root.isPlaying ? "⏸" : "▶"
-                    color: Theme.teal
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 16
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
+                Rectangle {
+                    width: 40; height: 40; radius: 20
+                    color: Theme.text
+
+                    Icon {
+                        anchors.centerIn: parent
+                        name: root.isPlaying ? "pause" : "play"
+                        size: 22
+                        color: Theme.base
+                    }
+                    TapHandler {
                         enabled: root.player && root.player.canTogglePlaying
-                        onClicked: root.player.togglePlaying()
+                        onTapped: root.player.togglePlaying()
                     }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
 
-                Text {
-                    text: ">>"
-                    color: root.player && root.player.canGoNext ? Theme.text : Theme.border
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "next"
+                    size: 22
+                    color: root.player && root.player.canGoNext ? Theme.text : Theme.track
+                    TapHandler {
                         enabled: root.player && root.player.canGoNext
-                        onClicked: root.player.next()
+                        onTapped: root.player.next()
                     }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
         }

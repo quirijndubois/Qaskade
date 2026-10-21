@@ -1,44 +1,41 @@
 import QtQuick
 import "../"
+import "../components"
 
+// Compact "name … value" list of the heaviest processes.
 Column {
     id: root
 
     property var processes: []
-    property color accentColor: Theme.blue
     property string unit: "%"
-    property string sectionLabel: "top processes"
+    property string sectionLabel: "Top processes"
 
-    spacing: 3
+    spacing: 6
 
-    Rectangle { width: root.width; height: 1; color: Theme.border; opacity: 0.5 }
-
-    Text {
+    SectionLabel {
         text: root.sectionLabel
-        color: Theme.subtext
-        font.family: Theme.barFontFamily
-        font.pixelSize: 10
+        bottomPadding: 2
     }
 
     Repeater {
         model: root.processes
-        Row {
+        Item {
             required property var modelData
             width: root.width
-            Text {
-                width: root.width - valText.width
+            height: 18
+
+            Label {
+                anchors { left: parent.left; right: valText.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
                 text: modelData.name
-                color: Theme.text
-                font.family: Theme.barFontFamily
-                font.pixelSize: 11
+                font.pixelSize: Theme.textSm
                 elide: Text.ElideRight
             }
-            Text {
+            Label {
                 id: valText
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 text: modelData.value + root.unit
-                color: root.accentColor
-                font.family: Theme.barFontFamily
-                font.pixelSize: 11
+                color: Theme.subtext
+                font.pixelSize: Theme.textSm
             }
         }
     }

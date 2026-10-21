@@ -1,9 +1,9 @@
 import Quickshell
-import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Io
 import QtQuick
 import "../"
+import "../components"
 
 Item {
     id: root
@@ -129,6 +129,7 @@ Item {
     // ── Reload data on open: generate thumbs first, then load files ─
     onShownChanged: {
         if (shown) {
+            Qt.callLater(() => keyItem.forceActiveFocus())
             root._snapScroll = true
             root._resumeCatName = (categories.length > 0 && categories[selCatIdx])
                 ? categories[selCatIdx].name : ""
@@ -294,53 +295,21 @@ Item {
         }
     }
 
-    // ── Per-screen panel ─────────────────────────────────────────
-    Variants {
-        model: Quickshell.screens
-        delegate: Component {
-            PanelWindow {
-                id: panel
-                required property var modelData
-                screen: modelData
+    // ── Content ──────────────────────────────────────────────
+    // Hosted by the center notch in shell.qml, which expands to fit it.
+    implicitHeight: pickerH
+    width: parent ? parent.width : 0
 
-                readonly property bool isFocused: {
-                    const hm = Hyprland.monitorFor(modelData)
-                    return hm !== null && hm === Hyprland.focusedMonitor
-                }
-
-                WlrLayershell.layer: WlrLayer.Overlay
-                WlrLayershell.keyboardFocus: (root.shown && isFocused)
-                    ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-                anchors { bottom: true; left: true; right: true }
-                exclusiveZone: 0
-                color: "transparent"
-                implicitHeight: root.pickerH
-                mask: Region { item: card }
-
-                property real slideY: root.shown ? 0 : root.pickerH
-                Behavior on slideY {
-                    NumberAnimation { duration: 380; easing.type: Easing.OutCubic }
-                }
-
-                Rectangle {
+                Item {
                     id: card
-                    // 1px inset from right edge so the rounded corner isn't clipped
-                    x: 0
-                    width: parent.width - 1
-                    height: root.pickerH
-                    y: panel.slideY
-                    color: Theme.base
-                    border.color: Theme.border
-                    border.width: 1
-                    topLeftRadius: 14
-                    topRightRadius: 14
+                    anchors.fill: parent
                     clip: true
 
                     // ── Keyboard handler ──────────────────────────
                     Item {
                         id: keyItem
                         anchors.fill: parent
-                        focus: root.shown && panel.isFocused
+                        focus: root.shown
 
                         Keys.onPressed: event => {
                             switch (event.key) {
@@ -362,14 +331,12 @@ Item {
                     }
 
                     // ── Generating-thumbnails overlay ─────────────
-                    Text {
+                    Label {
                         visible: root._genThumbsRunning
                         anchors.centerIn: parent
-                        text: "preparing…"
+                        text: "Preparing thumbnails…"
                         color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: 12
-                        opacity: 0.6
+                        font.pixelSize: Theme.textSm
                     }
 
                     // ── Category ListView (vertical) ──────────────
@@ -412,28 +379,27 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 5
 
-                                    Text {
+                                    Label {
                                         width: root.labelW - 20
-                                        text: row.modelData.name
-                                        color: row.isCurrent ? Theme.purple : Theme.subtext
-                                        font.family: "JetBrains Mono"
-                                        font.pixelSize: row.isCurrent ? 12 : 10
-                                        font.bold: row.isCurrent
+                                        text: row.modelData.name.charAt(0).toUpperCase() + row.modelData.name.slice(1)
+                                        color: row.isCurrent ? Theme.text : Theme.subtext
+                                        font.pixelSize: row.isCurrent ? Theme.textMd : Theme.textSm
+                                        font.weight: row.isCurrent ? Font.DemiBold : Font.Normal
                                         horizontalAlignment: Text.AlignHCenter
                                         wrapMode: Text.WordWrap
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
 
                                     // Pin indicator: this category is the Alt+R source
-                                    Text {
+                                    // Shuffle source for Alt+R
+                                    Label {
                                         visible: root.randomCat === row.modelData.name
                                                  || (root.randomCat === "" && row.modelData.name === "all")
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: ""
-                                        color: Theme.green
-                                        font.family: "Symbols Nerd Font Mono"
-                                        font.pixelSize: 12
-                                        opacity: 0.85
+                                        text: "Shuffle"
+                                        color: Theme.accent
+                                        font.pixelSize: Theme.textXs
+                                        font.weight: Font.Medium
                                     }
                                 }
 
@@ -442,8 +408,7 @@ Item {
                             Rectangle {
                                 x: root.labelW
                                 width: 1; height: parent.height
-                                color: Theme.border
-                                opacity: 0.5
+                                color: Theme.hairline
                             }
 
                             // ── Wallpaper strip ───────────────────
@@ -490,8 +455,8 @@ Item {
                                         y:      thumb.inset
                                         width:  thumb.visualW
                                         height: parent.height - thumb.inset * 2
-                                        radius: 8
-                                        color:  Theme.surface
+                                        radius: Theme.radiusMd
+                                        color:  Theme.hover
                                         clip:   true
 
                                         scale: thumb.active  ? 1.0
@@ -516,7 +481,7 @@ Item {
                                             anchors.fill: parent
                                             radius: parent.radius
                                             color: "transparent"
-                                            border.color: Theme.blue
+                                            border.color: Theme.text
                                             border.width: thumb.active ? 2 : 0
                                             Behavior on border.width {
                                                 NumberAnimation { duration: 180 }
@@ -529,9 +494,9 @@ Item {
                                                 && hList.n > 0
                                                 && !!(root._tags[hList.cat.files[thumb.ri]])
                                             anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
-                                            width: 7; height: 7; radius: 4
-                                            color: Theme.green
-                                            opacity: 0.85
+                                            width: 6; height: 6; radius: 3
+                                            color: Theme.text
+                                            opacity: 0.8
                                         }
 
                                     }
@@ -540,7 +505,4 @@ Item {
                         }
                     }
                 }
-            }
-        }
-    }
 }

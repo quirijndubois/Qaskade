@@ -1,52 +1,62 @@
 import QtQuick
 import "../"
+import "../components"
 
+// Basic bar item: optional glyph, optional dim caption, optional value text.
+// Shows its `modulePopup` under the bar while hovered.
 Item {
     id: root
 
-    property alias text: label.text
-    property alias color: label.color
+    property string icon: ""
+    property string caption: ""
+    property string text: ""
+    property color color: Theme.text
+    property color iconColor: color
 
     property string moduleId: ""
     property Component modulePopup: null
-    property real popupHeight: 0
     property var screen: null
 
-    implicitWidth: label.implicitWidth + (Theme.design === "pills" ? 20 : 0)
-    implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : label.implicitHeight
+    implicitWidth: row.implicitWidth
+    implicitHeight: Theme.barHeight
 
-    onPopupHeightChanged: {
-        if (moduleId !== "" && BarHover.activeModule === moduleId)
-            BarHover.popupH = popupHeight
-    }
+    Row {
+        id: row
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 5
 
-    Rectangle {
-        visible: Theme.design === "pills"
-        anchors.centerIn: parent
-        width: label.implicitWidth + 20
-        height: root.implicitHeight
-        radius: height / 2
-        color: Theme.surface
-        border.color: Theme.border
-        border.width: 1
-    }
+        Icon {
+            visible: root.icon !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            name: root.icon
+            size: Theme.barFontSize + 2
+            color: root.iconColor
+        }
 
-    Text {
-        id: label
-        anchors.centerIn: parent
-        color: Theme.text
-        font.family: Theme.barFontFamily
-        font.pixelSize: Theme.barFontSize
-        font.bold: Theme.barFontBold
-        verticalAlignment: Text.AlignVCenter
-        renderType: Text.NativeRendering
+        Label {
+            visible: root.caption !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.caption
+            color: Theme.subtext
+            font.pixelSize: Theme.barFontSize - 2
+            font.weight: Font.DemiBold
+        }
+
+        Label {
+            visible: root.text !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.text
+            color: root.color
+            font.pixelSize: Theme.barFontSize
+            font.weight: Font.Medium
+        }
     }
 
     HoverHandler {
         enabled: root.moduleId !== ""
         onHoveredChanged: {
             if (hovered)
-                BarHover.show(root.moduleId, root.modulePopup, root.mapToItem(null, root.width / 2, 0).x, root.popupHeight, root.screen)
+                BarHover.show(root.moduleId, root.modulePopup, root.mapToItem(null, root.width / 2, 0).x, root.screen)
             else
                 BarHover.startHide()
         }

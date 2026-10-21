@@ -1,39 +1,46 @@
 import QtQuick
 import Quickshell.Io
 import "../"
+import "../components"
 
-BarText {
+// Wi-Fi shows as four signal bars, ethernet as a glyph.
+Item {
     id: root
-    color: Theme.purple
 
-    property string netText: "net --"
-    property string ssidFull: ""
+    property var screen: null
+
+    property string kind: "none"     // "wifi" | "ethernet" | "none"
+    property string ssid: ""
+    property int signal: 0           // 0–100, Wi-Fi only
     property string ipText: ""
 
-    text: netText
-    moduleId: "network"
-    modulePopup: popup
+    readonly property int level: kind !== "wifi" ? 0
+                               : signal >= 75 ? 4 : signal >= 50 ? 3 : signal >= 25 ? 2 : 1
+
+    implicitWidth: kind === "wifi" ? bars.width : glyph.width
+    implicitHeight: Theme.barHeight
 
     Process {
         id: netProc
         command: ["sh", "-c",
-            "SSID=$(iwgetid -r 2>/dev/null | head -c 9); " +
-            "if [ -n \"$SSID\" ]; then echo \"wifi $SSID\"; " +
-            "elif nmcli dev 2>/dev/null | grep -q 'ethernet.*connected'; then echo 'eth'; " +
-            "else echo 'disc'; fi"]
+            "w=$(nmcli -t -f ACTIVE,SIGNAL,SSID dev wifi list --rescan no 2>/dev/null | grep '^yes:' | head -1); " +
+            "if [ -n \"$w\" ]; then echo \"wifi:$w\"; " +
+            "elif nmcli -t -f TYPE,STATE dev 2>/dev/null | grep -q '^ethernet:connected'; then echo 'ethernet'; " +
+            "else echo 'none'; fi"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 const out = this.text.trim()
-                if (out.startsWith("wifi ")) {
-                    root.ssidFull = out.slice(5)
-                    root.netText = root.ssidFull.length > 9 ? root.ssidFull.slice(0, 9) : root.ssidFull
-                } else if (out === "eth") {
-                    root.ssidFull = "ethernet"
-                    root.netText = "eth"
+                if (out.startsWith("wifi:")) {
+                    // wifi:yes:<signal>:<ssid>
+                    const p = out.split(":")
+                    root.kind = "wifi"
+                    root.signal = parseInt(p[2]) || 0
+                    root.ssid = p.slice(3).join(":")
                 } else {
-                    root.ssidFull = ""
-                    root.netText = "no net"
+                    root.kind = out === "ethernet" ? "ethernet" : "none"
+                    root.ssid = ""
+                    root.signal = 0
                 }
             }
         }
@@ -57,8 +64,37 @@ BarText {
         onTriggered: { netProc.running = true; ipProc.running = true }
     }
 
+    Row {
+        id: bars
+        visible: root.kind === "wifi"
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 2
+
+        Repeater {
+            model: 4
+            Rectangle {
+                required property int index
+                anchors.bottom: parent.bottom
+                width: 3
+                height: 4 + index * 2.5
+                radius: 1
+                color: index < root.level ? Theme.text : Theme.alpha(Theme.text, 0.25)
+            }
+        }
+    }
+
+    Icon {
+        id: glyph
+        visible: root.kind !== "wifi"
+        anchors.verticalCenter: parent.verticalCenter
+        name: root.kind === "ethernet" ? "ethernet" : "wifiOff"
+        size: Theme.barFontSize + 2
+        color: root.kind === "none" ? Theme.subtext : Theme.text
+    }
+
     MouseArea {
         anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
         onClicked: nmEditor.running = true
     }
 
@@ -67,35 +103,47 @@ BarText {
         command: ["nm-connection-editor"]
     }
 
+    HoverHandler {
+        onHoveredChanged: {
+            if (hovered)
+                BarHover.show("network", popup, root.mapToItem(null, root.width / 2, 0).x, root.screen)
+            else
+                BarHover.startHide()
+        }
+    }
+
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-            spacing: 6
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            Text {
-                text: root.ssidFull !== "" ? root.ssidFull : root.netText
-                color: Theme.purple
-                font.family: Theme.barFontFamily
-                font.pixelSize: 18
-                font.bold: true
-                elide: Text.ElideRight
+            PopupHeader {
+                title: root.kind === "wifi" ? root.ssid
+                     : root.kind === "ethernet" ? "Ethernet"
+                     : "Not connected"
+                subtitle: root.kind === "wifi" ? "Wi-Fi · " + root.signal + "% signal"
+                        : root.kind === "ethernet" ? "Wired connection"
+                        : "No network available"
+            }
+
+            Item {
+                visible: root.ipText !== "" && root.kind !== "none"
                 width: parent.width
-            }
+                height: 18
 
-            Text {
-                visible: root.ipText !== ""
-                text: root.ipText
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 12
-            }
-
-            Text {
-                text: root.netText === "no net" ? "disconnected" : root.ssidFull.length > 0 ? "wifi" : "ethernet"
-                color: root.netText === "no net" ? Theme.red : Theme.teal
-                font.family: Theme.barFontFamily
-                font.pixelSize: 11
+                Label {
+                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                    text: "IP address"
+                    color: Theme.subtext
+                    font.pixelSize: Theme.textSm
+                }
+                Label {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    text: root.ipText
+                    font.family: Theme.monoFamily
+                    font.pixelSize: Theme.textSm
+                }
             }
         }
     }

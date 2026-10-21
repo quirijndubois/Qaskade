@@ -1,20 +1,20 @@
 import QtQuick
 import Quickshell.Io
 import "../"
+import "../components"
 
 BarText {
     id: root
-    color: Theme.blue
-
     property int gpuUsage: 0
     property int vramUsed: 0
     property int vramTotal: 0
     property var topProcs: []
 
-    text: "gpu " + gpuUsage + "%"
+    caption: "GPU"
+    text: gpuUsage + "%"
+    color: gpuUsage > 80 ? Theme.red : Theme.text
     moduleId: "gpu"
     modulePopup: popup
-    popupHeight: 210
 
     Process {
         id: gpuProc
@@ -70,40 +70,27 @@ BarText {
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: 6
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            Row {
-                spacing: 8
-                Text {
-                    text: root.gpuUsage + "%"
-                    color: Theme.blue
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-                Text {
-                    anchors.bottom: parent.bottom; anchors.bottomMargin: 3
-                    visible: root.vramTotal > 0
-                    text: root.vramUsed + " / " + root.vramTotal + " MB"
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 10
-                }
+            PopupHeader {
+                title: "Graphics"
+                subtitle: root.vramTotal > 0 ? root.vramUsed + " of " + root.vramTotal + " MB video memory" : "No NVIDIA GPU detected"
+                detail: root.gpuUsage + "%"
             }
 
-            UsageBar {
+            Meter {
                 width: parent.width
                 value: root.gpuUsage
-                fillColor: Theme.blue
+                warnAt: 50
+                critAt: 80
             }
 
             ProcessList {
                 width: parent.width
                 processes: root.topProcs
-                accentColor: Theme.blue
                 unit: " MB"
-                sectionLabel: root.topProcs.length > 0 ? "gpu processes" : "no gpu processes"
+                sectionLabel: root.topProcs.length > 0 ? "GPU processes" : "No GPU processes"
             }
         }
     }

@@ -34,7 +34,7 @@ title: Keybinds
 |---|---|
 | `Alt + 1–9 / 0` | Switch to workspace |
 | `Alt + Shift + 1–9 / 0` | Move window to workspace |
-| `Alt + Tab` | Cycle workspaces |
+| `Alt + Tab` | Toggle between current and previous workspace |
 | `Alt + Shift + Tab` | Cycle workspaces backward |
 
 ## System

@@ -4,51 +4,18 @@ import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import QtQuick
 import "../"
+import "../components"
 
-FloatingWindow {
+// The settings overlay. Not a window of its own: shell.qml moves this item
+// into the center notch of the focused monitor, which expands to fit it.
+Item {
     id: root
-    implicitWidth: 520
-    implicitHeight: 420
-    color: Theme.base
-    title: "Quickshell Settings"
+    implicitWidth: 560
+    implicitHeight: 480
 
+    // Driven by shell.qml; replaces window visibility.
+    property bool open: false
     signal closeRequested()
-
-    property bool focusGrabReady: false
-
-    HyprlandFocusGrab {
-        windows: [root]
-        active: root.focusGrabReady
-        onCleared: root.closeRequested()
-    }
-
-    Timer {
-        id: focusGrabTimer
-        interval: 80
-        onTriggered: root.focusGrabReady = true
-    }
-
-    Timer {
-        id: moveMonitorTimer
-        interval: 60
-        onTriggered: {
-            const mon = root.monitorName
-            if (mon) {
-                moveMonitorProc.command = ["sh", "-c",
-                    "hyprctl dispatch focuswindow 'title:Quickshell Settings'" +
-                    " ; hyprctl dispatch movewindow 'mon:" + mon + "'" +
-                    " ; hyprctl dispatch focuswindow 'title:Quickshell Settings'"]
-                moveMonitorProc.running = false
-                moveMonitorProc.running = true
-            }
-        }
-    }
-
-    Process {
-        id: moveMonitorProc
-        stdout: StdioCollector {}
-        stderr: StdioCollector {}
-    }
 
     property string page: "main"
     property string activeSubPage: "appearance"
@@ -116,28 +83,25 @@ FloatingWindow {
     property string wpTextModel:     "qwen2.5-coder:7b"
     property int    wpTextModelIdx:  0
 
-    readonly property var monitorColors: [Theme.blue, Theme.green, Theme.yellow, Theme.teal, Theme.purple, Theme.red]
-
-    readonly property int sf: Theme.barFontSize
 
     property var systemSettingItems: {
         const items = []
-        items.push({ type: "section", label: "monitors" })
+        items.push({ type: "section", label: "Displays" })
         for (const m of root.systemMonitors) {
-            items.push({ type: "scale", label: m.name, sub: m.width + "×" + m.height, monitor: m })
-            items.push({ type: "monitor_toggle", label: m.enabled ? "disable" : "enable", monitor: m })
+            items.push({ type: "scale", label: m.name, sub: m.width + " × " + m.height, monitor: m })
+            items.push({ type: "monitor_toggle", label: "Enabled", sub: m.name, monitor: m })
         }
-        items.push({ type: "nav", label: "monitor layout", icon: "", page: "monitor_layout" })
-        items.push({ type: "font_size", label: "font size" })
-        items.push({ type: "section", label: "input" })
-        items.push({ type: "sensitivity",    label: "mouse sensitivity" })
-        items.push({ type: "natural_scroll", label: "natural scroll" })
-        items.push({ type: "scroll_factor",  label: "scroll factor" })
-        items.push({ type: "section", label: "window" })
-        items.push({ type: "nav", label: "layout", icon: "", page: "layout" })
-        items.push({ type: "blur_toggle", label: "blur" })
-        items.push({ type: "section", label: "navigation" })
-        items.push({ type: "vim_binds", label: "vim binds" })
+        items.push({ type: "nav", label: "Arrangement", page: "monitor_layout" })
+        items.push({ type: "font_size", label: "Bar text size" })
+        items.push({ type: "section", label: "Input" })
+        items.push({ type: "sensitivity",    label: "Pointer speed" })
+        items.push({ type: "natural_scroll", label: "Natural scrolling" })
+        items.push({ type: "scroll_factor",  label: "Scroll speed" })
+        items.push({ type: "section", label: "Windows" })
+        items.push({ type: "nav", label: "Tiling layout", page: "layout" })
+        items.push({ type: "blur_toggle", label: "Blur" })
+        items.push({ type: "section", label: "Keyboard" })
+        items.push({ type: "vim_binds", label: "Vim keys" })
         return items
     }
 
@@ -248,10 +212,6 @@ FloatingWindow {
             const s = root.fuzzyScore(searchQuery, n.ssid)
             if (s > 0) results.push({ score: s, type: "wifi", label: n.ssid, signal: n.signal, security: n.security, inUse: n.inUse })
         }
-        for (const d of designOptions) {
-            const s = Math.max(root.fuzzyScore(searchQuery, d.label), root.fuzzyScore(searchQuery, d.desc))
-            if (s > 0) results.push({ score: s, type: "design", label: d.label, id: d.id, desc: d.desc, bars: d.bars, barH: d.barH })
-        }
         for (const l of layoutOptions) {
             const s = Math.max(root.fuzzyScore(searchQuery, l.label), root.fuzzyScore(searchQuery, l.desc))
             if (s > 0) results.push({ score: s, type: "layout", label: l.label, id: l.id, desc: l.desc })
@@ -293,97 +253,75 @@ FloatingWindow {
     }
 
     readonly property var paletteOptions: [
-        { type: "section", label: "dark" },
-        { id: "mocha",       label: "catppuccin mocha",      swatches: ["#89b4fa","#a6e3a1","#f38ba8","#f9e2af","#94e2d5","#cba6f7"] },
-        { id: "macchiato",   label: "catppuccin macchiato",  swatches: ["#8aadf4","#a6da95","#ed8796","#eed49f","#8bd5ca","#c6a0f6"] },
-        { id: "frappe",      label: "catppuccin frappe",     swatches: ["#8caaee","#a6d189","#e78284","#e5c890","#81c8be","#ca9ee6"] },
-        { id: "tokyo-night", label: "tokyo night",           swatches: ["#7aa2f7","#9ece6a","#f7768e","#e0af68","#73daca","#bb9af7"] },
-        { id: "gruvbox",     label: "gruvbox",               swatches: ["#83a598","#b8bb26","#fb4934","#fabd2f","#8ec07c","#d3869b"] },
-        { id: "nord",        label: "nord",                  swatches: ["#81a1c1","#a3be8c","#bf616a","#ebcb8b","#88c0d0","#b48ead"] },
-        { id: "dracula",     label: "dracula",               swatches: ["#6272a4","#50fa7b","#ff5555","#f1fa8c","#8be9fd","#bd93f9"] },
-        { id: "rosepine",    label: "rose pine",             swatches: ["#9ccfd8","#31748f","#eb6f92","#f6c177","#ebbcba","#c4a7e7"] },
-        { id: "onedark",     label: "one dark",              swatches: ["#61afef","#98c379","#e06c75","#e5c07b","#56b6c2","#c678dd"] },
-        { id: "everforest",  label: "everforest",            swatches: ["#7fbbb3","#a7c080","#e67e80","#dbbc7f","#83c092","#d699b6"] },
-        { id: "solarized",   label: "solarized dark",        swatches: ["#268bd2","#859900","#dc322f","#b58900","#2aa198","#6c71c4"] },
-        { type: "section", label: "light" },
-        { id: "latte",       label: "catppuccin latte",      swatches: ["#1e66f5","#40a02b","#d20f39","#df8e1d","#179299","#8839ef"] },
-        { id: "solarized-light", label: "solarized light",   swatches: ["#268bd2","#859900","#dc322f","#b58900","#2aa198","#6c71c4"] },
-        { id: "gruvbox-light", label: "gruvbox light",       swatches: ["#458588","#689d6a","#cc241d","#d79921","#689d6a","#b16286"] },
-        { id: "nord-light",  label: "nord light",            swatches: ["#5e81ac","#a3be8c","#bf616a","#ebcb8b","#88c0d0","#b48ead"] },
-        { id: "rosepine-dawn", label: "rose pine dawn",      swatches: ["#286983","#d7827e","#b4637a","#ea9d34","#56949f","#907aa9"] },
-        { id: "onelight",    label: "one light",             swatches: ["#4078f2","#50a14f","#e45649","#c18401","#0184bc","#a626a4"] },
-    ]
-
-    readonly property var lockscreenOptions: [
-        { id: "default",  label: "default",  desc: "clock · date · input" },
-        { id: "minimal",  label: "minimal",  desc: "floating dots · zen" },
-        { id: "clock",    label: "clock",    desc: "oversized time face" },
-        { id: "terminal", label: "terminal", desc: "console login prompt" },
-        { id: "split",    label: "split",    desc: "time left · input right" },
-        { id: "random",   label: "random",   desc: "different design each lock" },
-    ]
-
-    readonly property var designOptions: [
-        { id: "default",  label: "default",  desc: "JetBrains Mono · flat",          bars: 1, barH: 6  },
-        { id: "compact",  label: "compact",  desc: "JetBrains Mono · slim",          bars: 1, barH: 3  },
-        { id: "islands",  label: "islands",  desc: "JetBrains Mono · floating",      bars: 3, barH: 14 },
-        { id: "pills",    label: "pills",    desc: "JetBrains Mono · per-module pills", bars: 5, barH: 14 },
-        { id: "bold",     label: "bold",     desc: "JetBrains Mono bold · tall",     bars: 1, barH: 10 },
-        { id: "minimal",  label: "minimal",  desc: "JetBrains Mono · ultra-thin",    bars: 1, barH: 2  },
-        { id: "clean",    label: "clean",    desc: "Noto Sans · sans-serif",         bars: 1, barH: 6  },
-        { id: "hacker",   label: "hacker",   desc: "Hack · terminal",                bars: 1, barH: 5  },
+        { type: "section", label: "Dark" },
+        { id: "mocha",       label: "Catppuccin Mocha",      swatches: ["#89b4fa","#a6e3a1","#f38ba8","#f9e2af","#94e2d5","#cba6f7"] },
+        { id: "macchiato",   label: "Catppuccin Macchiato",  swatches: ["#8aadf4","#a6da95","#ed8796","#eed49f","#8bd5ca","#c6a0f6"] },
+        { id: "frappe",      label: "Catppuccin Frappé",     swatches: ["#8caaee","#a6d189","#e78284","#e5c890","#81c8be","#ca9ee6"] },
+        { id: "tokyo-night", label: "Tokyo Night",           swatches: ["#7aa2f7","#9ece6a","#f7768e","#e0af68","#73daca","#bb9af7"] },
+        { id: "gruvbox",     label: "Gruvbox",               swatches: ["#83a598","#b8bb26","#fb4934","#fabd2f","#8ec07c","#d3869b"] },
+        { id: "nord",        label: "Nord",                  swatches: ["#81a1c1","#a3be8c","#bf616a","#ebcb8b","#88c0d0","#b48ead"] },
+        { id: "dracula",     label: "Dracula",               swatches: ["#6272a4","#50fa7b","#ff5555","#f1fa8c","#8be9fd","#bd93f9"] },
+        { id: "rosepine",    label: "Rosé Pine",             swatches: ["#9ccfd8","#31748f","#eb6f92","#f6c177","#ebbcba","#c4a7e7"] },
+        { id: "onedark",     label: "One Dark",              swatches: ["#61afef","#98c379","#e06c75","#e5c07b","#56b6c2","#c678dd"] },
+        { id: "everforest",  label: "Everforest",            swatches: ["#7fbbb3","#a7c080","#e67e80","#dbbc7f","#83c092","#d699b6"] },
+        { id: "solarized",   label: "Solarized Dark",        swatches: ["#268bd2","#859900","#dc322f","#b58900","#2aa198","#6c71c4"] },
+        { type: "section", label: "Light" },
+        { id: "latte",       label: "Catppuccin Latte",      swatches: ["#1e66f5","#40a02b","#d20f39","#df8e1d","#179299","#8839ef"] },
+        { id: "solarized-light", label: "Solarized Light",   swatches: ["#268bd2","#859900","#dc322f","#b58900","#2aa198","#6c71c4"] },
+        { id: "gruvbox-light", label: "Gruvbox Light",       swatches: ["#458588","#689d6a","#cc241d","#d79921","#689d6a","#b16286"] },
+        { id: "nord-light",  label: "Nord Light",            swatches: ["#5e81ac","#a3be8c","#bf616a","#ebcb8b","#88c0d0","#b48ead"] },
+        { id: "rosepine-dawn", label: "Rosé Pine Dawn",      swatches: ["#286983","#d7827e","#b4637a","#ea9d34","#56949f","#907aa9"] },
+        { id: "onelight",    label: "One Light",             swatches: ["#4078f2","#50a14f","#e45649","#c18401","#0184bc","#a626a4"] },
     ]
 
     readonly property var layoutOptions: [
-        { id: "dwindle",   label: "dwindle",   desc: "BSP spiral tiling" },
-        { id: "master",    label: "master",    desc: "master-stack tiling" },
-        { id: "scrolling", label: "scrolling", desc: "infinite horizontal tape" },
-        { id: "monocle",   label: "monocle",   desc: "fullscreen stack" },
+        { id: "dwindle",   label: "Dwindle",   desc: "Binary spiral tiling" },
+        { id: "master",    label: "Master",    desc: "One main window, a stack beside it" },
+        { id: "scrolling", label: "Scrolling", desc: "Columns on an endless horizontal strip" },
+        { id: "monocle",   label: "Monocle",   desc: "One window fills the screen" },
     ]
 
     readonly property var barModules: [
-        { id: "showMenu",      label: "menu button" },
-        { id: "showClock",     label: "clock" },
-        { id: "showBattery",   label: "battery" },
-        { id: "showCpu",       label: "cpu" },
-        { id: "showMemory",    label: "memory" },
-        { id: "showGpu",       label: "gpu" },
-        { id: "showWorkspaces", label: "workspaces" },
-        { id: "showMusic",     label: "music visualizer" },
-        { id: "showAudio",     label: "audio" },
-        { id: "showBluetooth", label: "bluetooth" },
-        { id: "showNetwork",   label: "network" },
-        { id: "showInhibit",   label: "inhibit sleep" },
-        { id: "showTray",      label: "tray" },
+        { id: "showMenu",       label: "Menu button" },
+        { id: "showWorkspaces", label: "Workspaces" },
+        { id: "showClock",      label: "Clock" },
+        { id: "showMusic",      label: "Now playing" },
+        { id: "showCpu",        label: "CPU" },
+        { id: "showMemory",     label: "Memory" },
+        { id: "showGpu",        label: "GPU" },
+        { id: "showInhibit",    label: "Keep awake" },
+        { id: "showTray",       label: "System tray" },
+        { id: "showNetwork",    label: "Network" },
+        { id: "showBluetooth",  label: "Bluetooth" },
+        { id: "showAudio",      label: "Sound" },
+        { id: "showBattery",    label: "Battery" },
     ]
 
     property var mainItems: [
-        { id: "appearance",    label: "appearance",    icon: "" },
-        { id: "apps",          label: "applications",  icon: "" },
-        { id: "bluetooth",     label: "bluetooth",     icon: "" },
-        { id: "wifi",          label: "wifi",          icon: "󰤡" },
-        { id: "clipboard",     label: "clipboard",     icon: "" },
-        { id: "notifications", label: "notifications", icon: "" },
-        { id: "emoji",         label: "emoji picker",  icon: "󰱫" },
-        { id: "system",        label: "system",        icon: "" },
-        { id: "power",         label: "power",         icon: "⏻" },
+        { id: "appearance",    label: "Appearance",    icon: "palette" },
+        { id: "apps",          label: "Applications",  icon: "apps" },
+        { id: "bluetooth",     label: "Bluetooth",     icon: "bluetooth" },
+        { id: "wifi",          label: "Wi-Fi",         icon: "wifi" },
+        { id: "clipboard",     label: "Clipboard",     icon: "clipboard" },
+        { id: "notifications", label: "Notifications", icon: "bell" },
+        { id: "emoji",         label: "Emoji",         icon: "emoji" },
+        { id: "system",        label: "System",        icon: "cog" },
+        { id: "power",         label: "Power",         icon: "power" },
     ]
 
     readonly property var powerItems: [
-        { id: "lock",      label: "lock",      icon: "",  color: "blue",   cmd: ["quickshell", "ipc", "-c", "default", "call", "lock", "lock"] },
-        { id: "suspend",   label: "suspend",   icon: "",  color: "teal",   cmd: ["systemctl", "suspend"] },
-        { id: "hibernate", label: "hibernate", icon: "󰤄",  color: "purple", cmd: ["systemctl", "hibernate"] },
-        { id: "logout",    label: "log out",   icon: "󰍃",  color: "yellow", cmd: ["sh", "-c", "hyprctl dispatch 'hl.dsp.exit()'"] },
-        { id: "reboot",    label: "reboot",    icon: "",  color: "yellow", cmd: ["systemctl", "reboot"] },
-        { id: "shutdown",  label: "shut down", icon: "⏻",  color: "red",    cmd: ["systemctl", "poweroff"] },
+        { id: "lock",      label: "Lock",      icon: "lock",      cmd: ["quickshell", "ipc", "-c", "default", "call", "lock", "lock"] },
+        { id: "suspend",   label: "Suspend",   icon: "sleep",     cmd: ["systemctl", "suspend"] },
+        { id: "hibernate", label: "Hibernate", icon: "hibernate", cmd: ["systemctl", "hibernate"] },
+        { id: "logout",    label: "Log out",   icon: "logout",    cmd: ["sh", "-c", "hyprctl dispatch 'hl.dsp.exit()'"] },
+        { id: "reboot",    label: "Restart",   icon: "restart",   cmd: ["systemctl", "reboot"] },
+        { id: "shutdown",  label: "Shut down", icon: "power",     cmd: ["systemctl", "poweroff"], destructive: true },
     ]
 
     readonly property var appearanceItems: [
-        { id: "palette",    label: "palette",       icon: "" },
-        { id: "design",     label: "bar design",    icon: "" },
-        { id: "bar",        label: "bar elements",  icon: "" },
-        { id: "lockscreen", label: "lock screen",   icon: "󰌮" },
-        { id: "wallpapers", label: "wallpaper tags", icon: "" },
+        { id: "palette",    label: "Color palette",  icon: "palette" },
+        { id: "bar",        label: "Bar layout",     icon: "viewDashboard" },
+        { id: "wallpapers", label: "Wallpaper tags", icon: "tag" },
     ]
 
 
@@ -674,7 +612,7 @@ FloatingWindow {
 
     function navigate(pg) {
         _pendingPage = pg
-        if (visible) {
+        if (open) {
             var _isSearch = (pg === "search")
             immediateSearch = _isSearch
             page = _isSearch ? "main" : pg
@@ -685,8 +623,8 @@ FloatingWindow {
         }
     }
 
-    onVisibleChanged: {
-        if (visible) {
+    onOpenChanged: {
+        if (open) {
             monitorName = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : ""
             var _isSearch = _pendingPage === "search"
             immediateSearch = _isSearch
@@ -700,14 +638,8 @@ FloatingWindow {
             wifiPendingNetwork = null
             wifiError = ""
             Qt.callLater(() => keyNav.forceActiveFocus())
-            focusGrabReady = false
-            focusGrabTimer.restart()
-            moveMonitorTimer.restart()
         } else {
             _pendingPage = "main"
-            focusGrabReady = false
-            focusGrabTimer.stop()
-            moveMonitorTimer.stop()
         }
     }
 
@@ -1643,7 +1575,7 @@ FloatingWindow {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
         }
 
-        readonly property var level2Pages: ["palette", "design", "bar", "layout", "monitor_layout", "lockscreen", "wallpapers"]
+        readonly property var level2Pages: ["palette", "bar", "layout", "monitor_layout", "wallpapers"]
         property real subOffset: level2Pages.indexOf(root.page) >= 0 ? 1.0 : 0.0
         Behavior on subOffset {
             NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -1763,8 +1695,6 @@ FloatingWindow {
                         btListView.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "wifi")
                         wifiListView.positionViewAtIndex(upScroll, ListView.Contain)
-                    else if (root.page === "design")
-                        designList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "layout")
                         layoutList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "bar")
@@ -1775,8 +1705,6 @@ FloatingWindow {
                         notifListView.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "system")
                         sysListView.positionViewAtIndex(upScroll, ListView.Contain)
-                    else if (root.page === "lockscreen")
-                        lockscreenList.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "power")
                         powerListView.positionViewAtIndex(upScroll, ListView.Contain)
                     else if (root.page === "emoji")
@@ -1800,13 +1728,11 @@ FloatingWindow {
                              : root.page === "apps"           ? Math.max(0, root.appsList.length - 1)
                              : root.page === "bluetooth"      ? Math.max(0, root.bluetoothDevices.length - 1)
                              : root.page === "wifi"           ? Math.max(0, root.wifiNetworks.length - 1)
-                             : root.page === "design"         ? root.designOptions.length - 1
                              : root.page === "layout"         ? root.layoutOptions.length - 1
                              : root.page === "bar"            ? Math.max(0, root.barModules.length - 1)
                              : root.page === "clipboard"      ? Math.max(0, root.clipboardItems.length - 1)
                              : root.page === "notifications"  ? Math.max(0, notifListView.count - 1)
                              : root.page === "system"         ? Math.max(0, root.systemSettingItems.length - 1)
-                             : root.page === "lockscreen"     ? root.lockscreenOptions.length - 1
                              : root.page === "wallpapers"     ? 5
                              : root.page === "power"          ? root.powerItems.length - 1
                              : root.page === "emoji"          ? Math.max(0, root.emojiList.length - 1)
@@ -1844,8 +1770,6 @@ FloatingWindow {
                         btListView.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "wifi")
                         wifiListView.positionViewAtIndex(downScroll, ListView.Contain)
-                    else if (root.page === "design")
-                        designList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "layout")
                         layoutList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "bar")
@@ -1856,8 +1780,6 @@ FloatingWindow {
                         notifListView.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "system")
                         sysListView.positionViewAtIndex(Math.min(downScroll, root.systemSettingItems.length - 1), ListView.Contain)
-                    else if (root.page === "lockscreen")
-                        lockscreenList.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "power")
                         powerListView.positionViewAtIndex(downScroll, ListView.Contain)
                     else if (root.page === "emoji")
@@ -2059,12 +1981,6 @@ FloatingWindow {
                         root.wifiPasswordMode = true
                     }
                 }
-            } else if (root.page === "design") {
-                const d = root.designOptions[root.selectedIndex]
-                if (d) Theme.design = d.id
-            } else if (root.page === "lockscreen") {
-                const ld = root.lockscreenOptions[root.selectedIndex]
-                if (ld) Theme.lockDesign = ld.id
             } else if (root.page === "wallpapers") {
                 if (root.selectedIndex === 1) {
                     root.wpHintsInput = root.wpTagHints
@@ -2160,7 +2076,6 @@ FloatingWindow {
                 }
                 return
             }
-            else if (result.type === "design") { Theme.design = result.id }
             else if (result.type === "layout") { root.applyLayout(result.id) }
             else if (result.type === "menu") { root.page = result.id; root.selectedIndex = 0 }
             else if (result.type === "clipboard") { root.copyClipboardItem(result.line); root.closeRequested(); return }
@@ -2191,7 +2106,6 @@ FloatingWindow {
             else if (root.page === "power")      powerListView.positionViewAtIndex(idx, ListView.Contain)
             else if (root.page === "notifications") notifListView.positionViewAtIndex(idx, ListView.Contain)
             else if (root.page === "clipboard")  clipListView.positionViewAtIndex(idx, ListView.Contain)
-            else if (root.page === "lockscreen") lockscreenList.positionViewAtIndex(idx, ListView.Contain)
         }
 
         // ── Main page ──────────────────────────────────────────
@@ -2200,77 +2114,28 @@ FloatingWindow {
             height: parent.height
             x: -parent.width * keyNav.offset
 
-            Rectangle {
+            PageHeader {
                 id: mainHeader
-                width: parent.width
-                height: 44
-                color: Theme.surface
-
-                Text {
-                    anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                    text: "settings"
-                    color: Theme.purple
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf + 1
-                    font.bold: true
-                }
+                title: "Settings"
+                showBack: false
+                detail: "Type to search"
             }
-
-            Rectangle { anchors.top: mainHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
             ListView {
                 id: mainList
-                anchors { left: parent.left; right: parent.right; top: mainHeader.bottom; bottom: parent.bottom; topMargin: 1 }
+                anchors { left: parent.left; right: parent.right; top: mainHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                 model: root.mainItems
                 clip: true
+                boundsBehavior: Flickable.StopAtBounds
 
-                delegate: Rectangle {
+                delegate: ListRow {
                     required property var modelData
                     required property int index
-
-                    width: mainList.width
-                    height: 44
-                    color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 10
-
-                        Text {
-                            text: root.selectedIndex === index ? ">" : " "
-                            color: Theme.blue
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                            width: 12
-                        }
-
-                        Text {
-                            text: modelData.icon || ""
-                            color: Theme.purple
-                            font.family: "Symbols Nerd Font Mono"
-                            font.pixelSize: sf + 4
-                            verticalAlignment: Text.AlignVCenter
-                            width: 24
-                        }
-
-                        Text {
-                            text: modelData.label
-                            color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: ">"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 1
-                    }
-
+                    selected: root.selectedIndex === index
+                    icon: modelData.icon
+                    label: modelData.label
+                    chevron: true
+                    onClicked: { root.selectedIndex = index; keyNav.activateItem() }
                 }
             }
         }
@@ -2293,90 +2158,27 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "appearance"
 
-                Rectangle {
+                PageHeader {
                     id: appearanceHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "appearance"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
+                    title: "Appearance"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: appearanceDivider; anchors.top: appearanceHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: appearanceList
-                    anchors { left: parent.left; right: parent.right; top: appearanceDivider.bottom; bottom: parent.bottom; topMargin: 1 }
+                    anchors { left: parent.left; right: parent.right; top: appearanceHeader.bottom; bottom: parent.bottom; topMargin: 8 }
                     model: root.appearanceItems
                     clip: true
                     interactive: false
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
                         required property var modelData
                         required property int index
-
-                        width: appearanceList.width
-                        height: 44
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 10
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                                width: 12
-                            }
-
-                            Text {
-                                text: modelData.icon || ""
-                                color: Theme.purple
-                                font.family: "Symbols Nerd Font Mono"
-                                font.pixelSize: sf + 4
-                                verticalAlignment: Text.AlignVCenter
-                                width: 24
-                            }
-
-                            Text {
-                                text: modelData.label
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: ">"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                        }
+                        selected: root.selectedIndex === index
+                        icon: modelData.icon
+                        label: modelData.label
+                        chevron: true
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
                     }
                 }
             }
@@ -2386,223 +2188,91 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "apps"
 
-                Rectangle {
+                PageHeader {
                     id: appsHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "applications"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.appsList.length + " apps"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
+                    title: "Applications"
+                    detail: root.appsList.length + " apps"
+                    onBackClicked: keyNav.goBack()
                 }
 
-                Rectangle { id: appsDivider; anchors.top: appsHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                Text {
+                EmptyState {
                     anchors.centerIn: parent
                     visible: root.appsList.length === 0
-                    text: "loading..."
-                    color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf
+                    icon: "apps"
+                    text: "Loading applications…"
                 }
 
                 ListView {
                     id: appListView
-                    anchors { left: parent.left; right: parent.right; top: appsDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: appsHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                     model: root.appsList
                     clip: true
                     visible: root.appsList.length > 0
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
+                        id: appRow
                         required property var modelData
                         required property int index
-
-                        width: appListView.width
-                        height: 56
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                text: modelData.name
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-
-                        Rectangle {
-                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                            width: 45
-                            height: 45
-                            radius: 4
-                            color: Theme.surface
-                            clip: true
-
+                        selected: root.selectedIndex === index
+                        label: modelData.name
+                        leading: Component {
                             Image {
-                                anchors.centerIn: parent
-                                width: 32
-                                height: 32
-                                source: root.resolveIcon(modelData.icon)
-                                sourceSize: Qt.size(32, 32)
+                                width: 28; height: 28
+                                source: root.resolveIcon(appRow.modelData.icon)
+                                sourceSize: Qt.size(56, 56)
                                 fillMode: Image.PreserveAspectFit
                                 asynchronous: true
                                 smooth: true
                             }
                         }
-
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
                     }
                 }
             }
-
 
             // ── Bluetooth ──────────────────────────────────────
             Item {
                 anchors.fill: parent
                 visible: root.activeSubPage === "bluetooth"
 
-                Rectangle {
+                PageHeader {
                     id: btHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "bluetooth"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.bluetoothDevices.length + " known"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
+                    title: "Bluetooth"
+                    detail: root.bluetoothDevices.length + " known"
+                    onBackClicked: keyNav.goBack()
                 }
 
-                Rectangle { id: btDivider; anchors.top: btHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                Text {
+                EmptyState {
                     anchors.centerIn: parent
                     visible: root.bluetoothDevices.length === 0
-                    text: "no known devices"
-                    color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf
+                    icon: "bluetoothOff"
+                    text: "No known devices"
                 }
 
                 ListView {
                     id: btListView
-                    anchors { left: parent.left; right: parent.right; top: btDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: btHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                     model: root.bluetoothDevices
                     clip: true
                     visible: root.bluetoothDevices.length > 0
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
                         required property var modelData
                         required property int index
+                        selected: root.selectedIndex === index
+                        icon: modelData.connected ? "bluetoothConnected" : "bluetooth"
+                        iconColor: modelData.connected ? Theme.accent : Theme.subtext
+                        label: modelData.name
+                        sublabel: modelData.connected ? "Connected" : modelData.paired ? "Paired" : "Not paired"
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
 
-                        width: btListView.width
-                        height: 56
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                text: modelData.name
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: parent.parent.selected
+                            text: modelData.connected ? "Disconnect" : "Connect"
+                            color: Theme.subtext
+                            font.pixelSize: Theme.textSm
                         }
-
-                        Rectangle {
-                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                            width: 45
-                            height: 45
-                            radius: 4
-                            color: Theme.surface
-
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 10
-                                height: 10
-                                radius: 5
-                                color: modelData.connected ? Theme.green
-                                     : modelData.paired    ? Theme.blue
-                                     : Theme.subtext
-                                opacity: modelData.connected ? 1.0 : 0.35
-                            }
-                        }
-
                     }
                 }
             }
@@ -2612,208 +2282,135 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "wifi"
 
-                Rectangle {
+                PageHeader {
                     id: wifiHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "wifi"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.wifiScanning ? "scanning..." : root.wifiNetworks.length + " networks"
-                        color: root.wifiScanning ? Theme.blue : Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
+                    title: "Wi-Fi"
+                    detail: root.wifiScanning ? "Scanning…" : root.wifiNetworks.length + " networks"
+                    onBackClicked: keyNav.goBack()
                 }
 
-                Rectangle { id: wifiDivider; anchors.top: wifiHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                Text {
+                EmptyState {
                     anchors.centerIn: parent
                     visible: !root.wifiScanning && root.wifiNetworks.length === 0 && !root.wifiPasswordMode
-                    text: "no networks found"
-                    color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf
+                    icon: "wifiOff"
+                    text: "No networks found"
                 }
 
                 ListView {
                     id: wifiListView
-                    anchors { left: parent.left; right: parent.right; top: wifiDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: wifiHeader.bottom; bottom: wifiHint.top; topMargin: 8 }
                     model: root.wifiNetworks
                     clip: true
                     visible: root.wifiNetworks.length > 0 && !root.wifiPasswordMode
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
                         required property var modelData
                         required property int index
-
-                        width: wifiListView.width
-                        height: 52
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
+                        selected: root.selectedIndex === index
+                        label: modelData.ssid
+                        sublabel: modelData.inUse ? "Connected"
+                                : modelData.known ? "Saved"
+                                : modelData.security !== "" ? "Secured" : "Open"
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
 
                         Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-
-                                Text {
-                                    text: modelData.ssid
-                                    color: modelData.inUse ? Theme.green
-                                         : root.selectedIndex === index ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                }
-
-                                Text {
-                                    visible: modelData.security !== ""
-                                    text: modelData.security
-                                    color: Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 3
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 2
+                            Repeater {
+                                model: 4
+                                Rectangle {
+                                    required property int index
+                                    anchors.bottom: parent.bottom
+                                    width: 3
+                                    height: 4 + index * 3
+                                    radius: 1
+                                    readonly property int level: modelData.signal >= 75 ? 4 : modelData.signal >= 50 ? 3 : modelData.signal >= 25 ? 2 : 1
+                                    color: index < level ? (modelData.inUse ? Theme.accent : Theme.text) : Theme.track
                                 }
                             }
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                            text: modelData.signal >= 75 ? "▂▄▆█"
-                                : modelData.signal >= 50 ? "▂▄▆ "
-                                : modelData.signal >= 25 ? "▂▄  "
-                                :                          "▂   "
-                            color: modelData.signal >= 75 ? Theme.green
-                                 : modelData.signal >= 50 ? Theme.yellow
-                                 : modelData.signal >= 25 ? Theme.teal
-                                 :                          Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                        }
-
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width; height: 1
-                            color: Theme.border; opacity: 0.3
                         }
                     }
                 }
 
-                // Password overlay
+                Label {
+                    id: wifiHint
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20 }
+                    height: visible ? 36 : 0
+                    visible: !root.wifiPasswordMode
+                    text: root.wifiError !== "" ? root.wifiError : "Enter to connect · R to rescan · Del to forget"
+                    color: root.wifiError !== "" ? Theme.red : Theme.subtext
+                    font.pixelSize: Theme.textXs
+                    elide: Text.ElideRight
+                }
+
+                // Password prompt
                 Item {
-                    anchors { left: parent.left; right: parent.right; top: wifiDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: wifiHeader.bottom; bottom: parent.bottom }
                     visible: root.wifiPasswordMode
 
                     Column {
-                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                        anchors.verticalCenterOffset: -16
-                        spacing: 0
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 32; rightMargin: 32 }
+                        spacing: 6
 
-                        // Network name
-                        Text {
+                        Label {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: root.wifiPendingNetwork ? root.wifiPendingNetwork.ssid : ""
-                            color: Theme.text
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 3
-                            font.bold: true
+                            font.pixelSize: Theme.textLg
+                            font.weight: Font.DemiBold
                         }
 
-                        Item { width: 1; height: 4 }
-
-                        Text {
+                        Label {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: root.wifiPendingNetwork ? root.wifiPendingNetwork.security : ""
+                            text: "Enter the network password"
                             color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 3
+                            font.pixelSize: Theme.textSm
                         }
 
-                        Item { width: 1; height: 20 }
+                        Item { width: 1; height: 12 }
 
-                        // Password field
                         Rectangle {
-                            anchors { left: parent.left; right: parent.right; leftMargin: 24; rightMargin: 24 }
-                            height: 38
-                            color: Theme.border
-                            radius: 6
+                            width: parent.width
+                            height: 42
+                            radius: Theme.radiusMd
+                            color: Theme.hover
+                            border.width: 1
+                            border.color: Theme.accent
 
                             Row {
                                 anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
-                                spacing: 0
+                                spacing: 1
 
-                                Text {
+                                Label {
+                                    anchors.verticalCenter: parent.verticalCenter
                                     text: "•".repeat(root.wifiPasswordInput.length)
-                                    color: Theme.text
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf + 2
-                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: Theme.textMd
                                 }
 
                                 Rectangle {
-                                    width: 2; height: sf + 2
+                                    width: 2; height: 18
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: Theme.blue
+                                    color: Theme.accent
                                     visible: wifiCursorBlink.blinkOn
                                 }
                             }
 
-                            Text {
-                                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                            Label {
+                                anchors { left: parent.left; leftMargin: 17; verticalCenter: parent.verticalCenter }
                                 visible: root.wifiPasswordInput === ""
-                                text: "password"
+                                text: "Password"
                                 color: Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 3
                             }
                         }
 
-                        Item { width: 1; height: 14 }
-
-                        // Error message
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                        Label {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             visible: root.wifiError !== ""
                             text: root.wifiError
                             color: Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 3
+                            font.pixelSize: Theme.textSm
                             elide: Text.ElideRight
-                            width: parent.width - 48
                         }
-
                     }
                 }
 
@@ -2833,92 +2430,34 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "clipboard"
 
-                Rectangle {
+                PageHeader {
                     id: clipHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "clipboard"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.clipboardItems.length + " entries"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
+                    title: "Clipboard"
+                    detail: root.clipboardItems.length + " items"
+                    onBackClicked: keyNav.goBack()
                 }
 
-                Rectangle { id: clipDivider; anchors.top: clipHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                Text {
+                EmptyState {
                     anchors.centerIn: parent
                     visible: root.clipboardItems.length === 0
-                    text: "no history yet"
-                    color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf - 2
+                    icon: "clipboard"
+                    text: "Nothing copied yet"
                 }
 
                 ListView {
                     id: clipListView
-                    anchors { left: parent.left; right: parent.right; top: clipDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: clipHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                     model: root.clipboardItems
                     clip: true
                     visible: root.clipboardItems.length > 0
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
                         required property var modelData
                         required property int index
-
-                        width: clipListView.width
-                        height: 44
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                text: modelData.preview
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
-                                width: clipListView.width - 80
-                            }
-                        }
-
+                        selected: root.selectedIndex === index
+                        label: modelData.preview
+                        mono: true
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
                     }
                 }
             }
@@ -2928,81 +2467,40 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "notifications"
 
-                Rectangle {
+                PageHeader {
                     id: notifHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
+                    title: "Notifications"
+                    detail: notifListView.count > 0 ? notifListView.count + " total" : ""
+                    onBackClicked: keyNav.goBack()
 
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "notifications"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Row {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 12
-
-                        Text {
-                            text: notifListView.count + " total"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            visible: notifListView.count > 0
-                            text: "clear all"
-                            color: Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
-                            verticalAlignment: Text.AlignVCenter
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.clearNotificationsAnimated()
-                            }
-                        }
+                    Label {
+                        visible: notifListView.count > 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Clear all"
+                        color: clearAllHover.hovered ? Theme.text : Theme.accent
+                        font.pixelSize: Theme.textSm
+                        font.weight: Font.Medium
+                        HoverHandler { id: clearAllHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: root.clearNotificationsAnimated() }
                     }
                 }
 
-                Rectangle { id: notifDivider; anchors.top: notifHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                Text {
+                EmptyState {
                     anchors.centerIn: parent
                     visible: notifListView.count === 0
-                    text: "no notifications"
-                    color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf
+                    icon: "bell"
+                    text: "You're all caught up"
                 }
 
                 ListView {
                     id: notifListView
-                    anchors { left: parent.left; right: parent.right; top: notifDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: notifHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                     model: Notifications.history
                     clip: true
+                    spacing: 4
                     visible: notifListView.count > 0
 
-                    delegate: Rectangle {
+                    delegate: Item {
                         id: notifDelegate
                         required property var modelData
                         required property int index
@@ -3037,73 +2535,69 @@ FloatingWindow {
                         }
 
                         width: notifListView.width
-                        height: 64
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
+                        height: notifCol.implicitHeight + 24
 
-                        // Urgency bar on left edge
                         Rectangle {
-                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                            width: 3
-                            color: modelData.urgency === NotificationUrgency.Critical ? Theme.red
-                                 : modelData.urgency === NotificationUrgency.Low      ? Theme.subtext
-                                 : Theme.blue
+                            anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                            radius: Theme.radiusMd
+                            color: root.selectedIndex === notifDelegate.index ? Theme.selected : Theme.hover
+
+                            Column {
+                                id: notifCol
+                                anchors {
+                                    left: parent.left; leftMargin: 14
+                                    right: dismissBtn.left; rightMargin: 10
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                spacing: 3
+
+                                Row {
+                                    spacing: 6
+                                    Rectangle {
+                                        visible: modelData.urgency === NotificationUrgency.Critical
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 6; height: 6; radius: 3
+                                        color: Theme.red
+                                    }
+                                    Label {
+                                        text: modelData.appName || "Notification"
+                                        color: Theme.subtext
+                                        font.pixelSize: Theme.textXs
+                                        font.weight: Font.Medium
+                                    }
+                                }
+
+                                Label {
+                                    width: parent.width
+                                    text: modelData.summary || ""
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    visible: text !== ""
+                                }
+
+                                Label {
+                                    width: parent.width
+                                    text: modelData.body || ""
+                                    color: Theme.subtext
+                                    font.pixelSize: Theme.textSm
+                                    textFormat: Text.PlainText
+                                    wrapMode: Text.Wrap
+                                    maximumLineCount: 2
+                                    elide: Text.ElideRight
+                                    visible: text !== ""
+                                }
+                            }
+
+                            Icon {
+                                id: dismissBtn
+                                anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                                name: "close"
+                                size: 16
+                                color: dismissHover.hovered ? Theme.text : Theme.subtext
+                                HoverHandler { id: dismissHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: notifDelegate.dismiss() }
+                            }
                         }
-
-                        Column {
-                            anchors {
-                                left: parent.left; leftMargin: 16
-                                right: dismissBtn.left; rightMargin: 8
-                                verticalCenter: parent.verticalCenter
-                            }
-                            spacing: 3
-
-                            Text {
-                                width: parent.width
-                                text: modelData.appName || "unknown"
-                                color: modelData.urgency === NotificationUrgency.Critical ? Theme.red
-                                     : modelData.urgency === NotificationUrgency.Low      ? Theme.subtext
-                                     : Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 3
-                                elide: Text.ElideRight
-                            }
-
-                            Text {
-                                width: parent.width
-                                text: modelData.summary || ""
-                                color: root.selectedIndex === index ? Theme.text : Theme.text
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                font.bold: true
-                                elide: Text.ElideRight
-                                visible: text !== ""
-                            }
-
-                            Text {
-                                width: parent.width
-                                text: modelData.body || ""
-                                color: Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 3
-                                elide: Text.ElideRight
-                                visible: text !== ""
-                            }
-                        }
-
-                        Text {
-                            id: dismissBtn
-                            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                            text: "x"
-                            color: root.selectedIndex === index ? Theme.red : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: notifDelegate.dismiss()
-                            }
-                        }
-
                     }
                 }
             }
@@ -3113,342 +2607,170 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "system"
 
-                Rectangle {
+                PageHeader {
                     id: sysHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "system"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
+                    title: "System"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: sysDivider; anchors.top: sysHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: sysListView
-                    anchors { left: parent.left; right: parent.right; top: sysDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: sysHeader.bottom; bottom: parent.bottom; bottomMargin: 8 }
                     model: root.systemSettingItems
                     clip: true
                     interactive: true
                     onCountChanged: if (root.activeSubPage === "system") Qt.callLater(() => contentY = 0)
 
-                    delegate: Item {
+                    delegate: Loader {
                         id: sysDelegate
                         required property var modelData
                         required property int index
-                        property bool isSection: sysDelegate.modelData.type === "section"
-                        property bool isSelected: root.selectedIndex === sysDelegate.index
-
                         width: sysListView.width
-                        height: isSection ? 32 : 48
+                        sourceComponent: modelData.type === "section" ? sysSection : sysRow
 
-                        // Section header background
-                        Rectangle {
-                            anchors.fill: parent
-                            visible: sysDelegate.isSection
-                            color: Theme.surface
-
-                            Text {
-                                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                                text: sysDelegate.modelData.label || ""
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 2
-                                font.bold: true
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: { /* sections are not selectable */ }
+                        Component {
+                            id: sysSection
+                            Item {
+                                width: sysListView.width
+                                height: 40
+                                SectionLabel {
+                                    anchors { left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 6 }
+                                    text: sysDelegate.modelData.label
+                                }
                             }
                         }
 
-                        // Interactive row
-                        Rectangle {
-                            anchors.fill: parent
-                            visible: !sysDelegate.isSection
-                            color: sysDelegate.isSelected ? Theme.border : "transparent"
-
-                            // Cursor indicator
-                            Text {
-                                anchors { left: parent.left; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.isSelected
-                                text: ">"
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                            }
-
-                            // Label column
-                            Column {
-                                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                                spacing: 2
-
-                                Text {
-                                    text: sysDelegate.modelData.label || ""
-                                    color: sysDelegate.isSelected ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 1
+                        Component {
+                            id: sysRow
+                            ListRow {
+                                id: row
+                                readonly property var entry: sysDelegate.modelData
+                                readonly property string kind: entry.type
+                                width: sysListView.width
+                                selected: root.selectedIndex === sysDelegate.index
+                                label: entry.label
+                                sublabel: entry.sub || ""
+                                chevron: kind === "nav"
+                                onClicked: {
+                                    root.selectedIndex = sysDelegate.index
+                                    if (kind === "nav") keyNav.navigateTo(entry.page)
                                 }
 
-                                Text {
-                                    visible: (sysDelegate.modelData.sub || "") !== ""
-                                    text: sysDelegate.modelData.sub || ""
-                                    color: Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 3
-                                }
-                            }
+                                // Monitor scale chips
+                                Row {
+                                    visible: row.kind === "scale"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
 
-                            // Scale chips
-                            Row {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "scale"
-                                spacing: 4
+                                    Repeater {
+                                        model: [1, 1.25, 1.5, 2]
+                                        delegate: Rectangle {
+                                            id: scaleChip
+                                            required property var modelData
+                                            readonly property bool active: row.entry.monitor
+                                                ? Math.abs(row.entry.monitor.scale - modelData) < 0.01 : false
+                                            width: 42; height: 26; radius: Theme.radiusSm
+                                            color: active ? Theme.accent : Theme.hover
 
-                                Repeater {
-                                    id: scaleRep
-                                    property var entry: sysDelegate.modelData
-                                    model: [1, 1.25, 1.5, 2]
+                                            Label {
+                                                anchors.centerIn: parent
+                                                text: scaleChip.modelData + "×"
+                                                color: scaleChip.active ? Theme.base : Theme.subtext
+                                                font.pixelSize: Theme.textXs
+                                                font.weight: Font.Medium
+                                            }
 
-                                    delegate: Rectangle {
-                                        id: scaleChip
-                                        required property var modelData
-                                        property bool active: scaleRep.entry.monitor
-                                            ? Math.abs(scaleRep.entry.monitor.scale - scaleChip.modelData) < 0.01
-                                            : false
-                                        width: 36; height: 22; radius: 3
-                                        color: active ? Theme.blue : Theme.surface
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: scaleChip.modelData % 1 === 0
-                                                ? Math.round(scaleChip.modelData) + "×"
-                                                : scaleChip.modelData + "×"
-                                            color: active ? Theme.base : Theme.subtext
-                                            font.family: "JetBrains Mono"
-                                            font.pixelSize: sf - 4
+                                            TapHandler {
+                                                onTapped: {
+                                                    root.selectedIndex = sysDelegate.index
+                                                    root.setMonitorScale(row.entry.monitor, scaleChip.modelData)
+                                                }
+                                            }
+                                            HoverHandler { cursorShape: Qt.PointingHandCursor }
                                         }
+                                    }
+                                }
 
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                root.selectedIndex = sysDelegate.index
-                                                root.setMonitorScale(scaleRep.entry.monitor, scaleChip.modelData)
+                                // Stepper for pointer speed, scroll speed and text size
+                                Row {
+                                    visible: row.kind === "sensitivity" || row.kind === "scroll_factor" || row.kind === "font_size"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+
+                                    function step(dir) {
+                                        root.selectedIndex = sysDelegate.index
+                                        if (row.kind === "sensitivity") root.setMouseSensitivity(root.mouseSensitivity + dir * 0.1)
+                                        else if (row.kind === "scroll_factor") root.setScrollFactor(root.scrollFactor + dir * 0.05)
+                                        else if (row.kind === "font_size") Theme.barFontSize = Math.max(8, Math.min(20, Theme.barFontSize + dir))
+                                    }
+
+                                    Repeater {
+                                        model: [-1, 0, 1]
+                                        delegate: Item {
+                                            required property int modelData
+                                            width: modelData === 0 ? 48 : 26
+                                            height: 26
+
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                visible: parent.modelData !== 0
+                                                radius: Theme.radiusSm
+                                                color: stepHover.hovered ? Theme.selected : Theme.hover
+                                            }
+
+                                            Label {
+                                                anchors.centerIn: parent
+                                                text: parent.modelData < 0 ? "−"
+                                                    : parent.modelData > 0 ? "+"
+                                                    : row.kind === "sensitivity" ? root.mouseSensitivity.toFixed(1)
+                                                    : row.kind === "scroll_factor" ? root.scrollFactor.toFixed(2)
+                                                    : Theme.barFontSize + " px"
+                                                color: parent.modelData === 0 ? Theme.text : Theme.subtext
+                                                font.pixelSize: parent.modelData === 0 ? Theme.textSm : Theme.textMd
+                                            }
+
+                                            HoverHandler { id: stepHover; enabled: parent.modelData !== 0; cursorShape: Qt.PointingHandCursor }
+                                            TapHandler {
+                                                enabled: parent.modelData !== 0
+                                                onTapped: parent.parent.step(parent.modelData)
                                             }
                                         }
                                     }
                                 }
-                            }
 
-                            // Stepper (+/value/−) for sensitivity, scroll_factor, and font_size
-                            Row {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "sensitivity" || sysDelegate.modelData.type === "scroll_factor" || sysDelegate.modelData.type === "font_size"
-                                spacing: 10
-
-                                Text {
-                                    text: "−"
-                                    color: (sysDelegate.modelData.type === "sensitivity" && root.mouseSensitivity <= -1.0) ||
-                                           (sysDelegate.modelData.type === "scroll_factor" && root.scrollFactor <= 0.1) ||
-                                           (sysDelegate.modelData.type === "font_size" && Theme.barFontSize <= 8)
-                                           ? Theme.surface : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf + 3
-                                    verticalAlignment: Text.AlignVCenter
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.selectedIndex = sysDelegate.index
-                                            if (sysDelegate.modelData.type === "sensitivity") root.setMouseSensitivity(root.mouseSensitivity - 0.1)
-                                            else if (sysDelegate.modelData.type === "scroll_factor") root.setScrollFactor(root.scrollFactor - 0.05)
-                                            else if (sysDelegate.modelData.type === "font_size") Theme.barFontSize = Math.max(8, Theme.barFontSize - 1)
-                                        }
-                                    }
-                                }
-
-                                Text {
-                                    text: sysDelegate.modelData.type === "sensitivity"
-                                        ? root.mouseSensitivity.toFixed(2)
-                                        : sysDelegate.modelData.type === "scroll_factor"
-                                        ? root.scrollFactor.toFixed(2)
-                                        : Theme.barFontSize
-                                    color: Theme.text
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 1
-                                    width: 44
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                Text {
-                                    text: "+"
-                                    color: (sysDelegate.modelData.type === "sensitivity" && root.mouseSensitivity >= 1.0) ||
-                                           (sysDelegate.modelData.type === "scroll_factor" && root.scrollFactor >= 3.0) ||
-                                           (sysDelegate.modelData.type === "font_size" && Theme.barFontSize >= 20)
-                                           ? Theme.surface : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf + 1
-                                    verticalAlignment: Text.AlignVCenter
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            root.selectedIndex = sysDelegate.index
-                                            if (sysDelegate.modelData.type === "sensitivity") root.setMouseSensitivity(root.mouseSensitivity + 0.1)
-                                            else if (sysDelegate.modelData.type === "scroll_factor") root.setScrollFactor(root.scrollFactor + 0.05)
-                                            else if (sysDelegate.modelData.type === "font_size") Theme.barFontSize = Math.min(20, Theme.barFontSize + 1)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Toggle for natural_scroll
-                            Rectangle {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "natural_scroll"
-                                width: 34; height: 18; radius: 9
-                                color: root.naturalScroll ? Theme.green : Theme.border
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Rectangle {
-                                    width: 12; height: 12; radius: 6
+                                Toggle {
+                                    visible: row.kind === "natural_scroll"
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: Theme.base
-                                    x: root.naturalScroll ? parent.width - width - 3 : 3
-                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                    checked: root.naturalScroll
+                                    onToggled: { root.selectedIndex = sysDelegate.index; root.setNaturalScroll(!root.naturalScroll) }
                                 }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: { root.selectedIndex = sysDelegate.index; root.setNaturalScroll(!root.naturalScroll) }
-                                }
-                            }
 
-                            // Toggle for blur
-                            Rectangle {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "blur_toggle"
-                                width: 34; height: 18; radius: 9
-                                color: root.blurEnabled ? Theme.green : Theme.border
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Rectangle {
-                                    width: 12; height: 12; radius: 6
+                                Toggle {
+                                    visible: row.kind === "blur_toggle"
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: Theme.base
-                                    x: root.blurEnabled ? parent.width - width - 3 : 3
-                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                    checked: root.blurEnabled
+                                    onToggled: { root.selectedIndex = sysDelegate.index; root.setBlur(!root.blurEnabled) }
                                 }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: { root.selectedIndex = sysDelegate.index; root.setBlur(!root.blurEnabled) }
-                                }
-                            }
 
-                            // Toggle for vim binds
-                            Rectangle {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "vim_binds"
-                                width: 34; height: 18; radius: 9
-                                color: Theme.vimBinds ? Theme.green : Theme.border
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Rectangle {
-                                    width: 12; height: 12; radius: 6
+                                Toggle {
+                                    visible: row.kind === "vim_binds"
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: Theme.base
-                                    x: Theme.vimBinds ? parent.width - width - 3 : 3
-                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                    checked: Theme.vimBinds
+                                    onToggled: { root.selectedIndex = sysDelegate.index; Theme.vimBinds = !Theme.vimBinds }
                                 }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: { root.selectedIndex = sysDelegate.index; Theme.vimBinds = !Theme.vimBinds }
-                                }
-                            }
 
-                            // Toggle for monitor enable/disable
-                            Rectangle {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "monitor_toggle"
-                                property var entry: sysDelegate.modelData
-                                property bool isOn: !!(entry.monitor && entry.monitor.enabled)
-                                property bool canDisable: root.systemMonitors.filter(m => m.enabled).length > 1
-                                width: 34; height: 18; radius: 9
-                                opacity: (!isOn && !canDisable) ? 0.35 : 1.0
-                                Behavior on opacity { NumberAnimation { duration: 150 } }
-                                color: isOn ? Theme.green : Theme.border
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Rectangle {
-                                    width: 12; height: 12; radius: 6
+                                Toggle {
+                                    visible: row.kind === "monitor_toggle"
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: Theme.base
-                                    x: parent.isOn ? parent.width - width - 3 : 3
-                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: (parent.canDisable || parent.isOn) ? Qt.PointingHandCursor : Qt.ForbiddenCursor
-                                    onClicked: { root.selectedIndex = sysDelegate.index; root.setMonitorEnabled(sysDelegate.modelData.monitor, !sysDelegate.modelData.monitor.enabled) }
+                                    readonly property bool canDisable: root.systemMonitors.filter(m => m.enabled).length > 1
+                                    checked: !!(row.entry.monitor && row.entry.monitor.enabled)
+                                    opacity: checked && !canDisable ? 0.4 : 1.0
+                                    onToggled: { root.selectedIndex = sysDelegate.index; root.setMonitorEnabled(row.entry.monitor, !row.entry.monitor.enabled) }
                                 }
                             }
-
-                            // Arrow for nav items
-                            Text {
-                                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                                visible: sysDelegate.modelData.type === "nav"
-                                text: "›"
-                                color: sysDelegate.isSelected ? Theme.blue : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf + 5
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                visible: sysDelegate.modelData.type === "nav"
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: { root.selectedIndex = sysDelegate.index; keyNav.navigateTo(sysDelegate.modelData.page) }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                visible: sysDelegate.modelData.type !== "scale" && sysDelegate.modelData.type !== "sensitivity" && sysDelegate.modelData.type !== "natural_scroll" && sysDelegate.modelData.type !== "scroll_factor" && sysDelegate.modelData.type !== "font_size" && sysDelegate.modelData.type !== "monitor_toggle" && sysDelegate.modelData.type !== "nav"
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: { root.selectedIndex = sysDelegate.index }
-                            }
-
-                        }
-
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width; height: 1
-                            color: Theme.border; opacity: 0.3
-                            visible: !sysDelegate.isSection
                         }
                     }
                 }
-            }
             }
 
             // ── Power ─────────────────────────────────────────
@@ -3456,98 +2778,28 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "power"
 
-                Rectangle {
+                PageHeader {
                     id: powerHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "power"
-                            color: Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
+                    title: "Power"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: powerDivider; anchors.top: powerHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: powerListView
-                    anchors { left: parent.left; right: parent.right; top: powerDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: powerHeader.bottom; bottom: parent.bottom; topMargin: 8 }
                     model: root.powerItems
                     clip: true
                     interactive: false
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
                         required property var modelData
                         required property int index
-
-                        width: powerListView.width
-                        height: 56
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        property color accentColor: modelData.color === "red"    ? Theme.red
-                                                  : modelData.color === "yellow" ? Theme.yellow
-                                                  : modelData.color === "teal"   ? Theme.teal
-                                                  : modelData.color === "purple" ? Theme.purple
-                                                  : Theme.blue
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 16
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                text: modelData.icon
-                                color: parent.parent.accentColor
-                                font.family: "Symbols Nerd Font Mono"
-                                font.pixelSize: 18
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                text: modelData.label
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width; height: 1
-                            color: Theme.border; opacity: 0.3
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { root.selectedIndex = index; root.runPowerAction(modelData) }
-                        }
+                        selected: root.selectedIndex === index
+                        icon: modelData.icon
+                        iconColor: modelData.destructive ? Theme.red : Theme.subtext
+                        label: modelData.label
+                        labelColor: modelData.destructive ? Theme.red : Theme.text
+                        onClicked: { root.selectedIndex = index; root.runPowerAction(modelData) }
                     }
                 }
             }
@@ -3557,103 +2809,46 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "emoji"
 
-                Rectangle {
+                PageHeader {
                     id: emojiHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "emoji picker"
-                            color: Theme.yellow
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.emojiList.length + " emoji"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
+                    title: "Emoji"
+                    detail: "Type to search"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: emojiDivider; anchors.top: emojiHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: emojiListView
-                    anchors { left: parent.left; right: parent.right; top: emojiDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: emojiHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                     model: root.emojiList
                     clip: true
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
+                        id: emojiRow
                         required property var modelData
                         required property int index
-
-                        width: emojiListView.width
-                        height: 44
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 16
-
+                        selected: root.selectedIndex === index
+                        label: modelData.n.charAt(0).toUpperCase() + modelData.n.slice(1)
+                        leading: Component {
                             Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                                width: 12
-                            }
-
-                            Text {
-                                text: modelData.e
-                                font.pixelSize: sf + 6
-                                verticalAlignment: Text.AlignVCenter
-                                width: 32
-                            }
-
-                            Text {
-                                text: modelData.n
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
+                                width: 28
+                                text: emojiRow.modelData.e
+                                font.pixelSize: 20
+                                horizontalAlignment: Text.AlignHCenter
                             }
                         }
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
 
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: "copy"
-                            color: root.selectedIndex === index ? Theme.yellow : "transparent"
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 3
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { root.selectedIndex = index; root.copyEmoji(modelData.e); root.closeRequested() }
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: emojiRow.selected
+                            text: "Copy"
+                            color: Theme.subtext
+                            font.pixelSize: Theme.textSm
                         }
                     }
                 }
+            }
+
             }
 
             // ── Level-2 container (appearance sub-pages) ─────────────────
@@ -3667,143 +2862,36 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "layout"
 
-                Rectangle {
+                PageHeader {
                     id: layoutHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "layout"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
+                    title: "Tiling layout"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: layoutDivider; anchors.top: layoutHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: layoutList
-                    anchors { left: parent.left; right: parent.right; top: layoutDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: layoutHeader.bottom; bottom: parent.bottom; topMargin: 8 }
                     model: root.layoutOptions
                     clip: true
                     interactive: false
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
+                        id: layoutRow
                         required property var modelData
                         required property int index
+                        selected: root.selectedIndex === index
+                        label: modelData.label
+                        sublabel: modelData.desc
+                        leading: Component { LayoutGlyph { layoutId: layoutRow.modelData.id } }
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
 
-                        width: layoutList.width
-                        height: 56
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-
-                                Text {
-                                    text: modelData.label
-                                    color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                }
-
-                                Text {
-                                    text: modelData.desc
-                                    color: Theme.teal
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 3
-                                }
-                            }
+                        Icon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: root.currentLayout === layoutRow.modelData.id
+                            name: "check"
+                            size: 18
+                            color: Theme.accent
                         }
-
-                        // Layout diagram
-                        Rectangle {
-                            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                            width: 45; height: 45; radius: 4; color: Theme.surface
-
-                            // dwindle: left tall + right top wide + right bottom pair
-                            Row {
-                                visible: modelData.id === "dwindle"
-                                anchors.centerIn: parent; spacing: 1
-                                Rectangle { width: 16; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Column {
-                                    spacing: 1
-                                    Rectangle { width: 20; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                    Row {
-                                        spacing: 1
-                                        Rectangle { width: 9; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                        Rectangle { width: 9; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                    }
-                                }
-                            }
-
-                            // master: tall left + stacked right
-                            Row {
-                                visible: modelData.id === "master"
-                                anchors.centerIn: parent; spacing: 1
-                                Rectangle { width: 20; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Column {
-                                    spacing: 1
-                                    Rectangle { width: 16; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                    Rectangle { width: 16; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                }
-                            }
-
-                            // scrolling: three equal columns
-                            Row {
-                                visible: modelData.id === "scrolling"
-                                anchors.centerIn: parent; spacing: 1
-                                Rectangle { width: 11; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Rectangle { width: 11; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Rectangle { width: 11; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                            }
-
-                            // monocle: single full window
-                            Rectangle {
-                                visible: modelData.id === "monocle"
-                                anchors.centerIn: parent
-                                width: 37; height: 37; radius: 2; color: Theme.blue; opacity: 0.45
-                            }
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 64; verticalCenter: parent.verticalCenter }
-                            visible: root.currentLayout === modelData.id
-                            text: "*"
-                            color: Theme.green
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                        }
-
                     }
                 }
             }
@@ -3813,49 +2901,16 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "monitor_layout"
 
-                Rectangle {
+                PageHeader {
                     id: monLayoutHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "monitor layout"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: ""
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 3
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 20
-                        }
-                    }
+                    title: "Arrangement"
+                    detail: "Arrows move · Tab switches · 0–9 assigns"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: monLayoutDivider; anchors.top: monLayoutHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 Item {
                     id: monLayoutCanvas
-                    anchors { left: parent.left; right: parent.right; top: monLayoutDivider.bottom; bottom: wsPanel.top; margins: 16 }
+                    anchors { left: parent.left; right: parent.right; top: monLayoutHeader.bottom; bottom: wsPanel.top; margins: 24 }
 
                     property real minX: root.systemMonitors.length > 0 ? root.systemMonitors.reduce((mn, m) => Math.min(mn, m.x), Infinity) : 0
                     property real minY: root.systemMonitors.length > 0 ? root.systemMonitors.reduce((mn, m) => Math.min(mn, m.y), Infinity) : 0
@@ -3870,378 +2925,166 @@ FloatingWindow {
                         delegate: Rectangle {
                             required property var modelData
                             required property int index
+                            readonly property bool sel: root.selectedMonitorIdx === index
 
                             x: modelData.x * monLayoutCanvas.monScale + monLayoutCanvas.offsetX
                             y: modelData.y * monLayoutCanvas.monScale + monLayoutCanvas.offsetY
                             width:  (modelData.width  / modelData.scale) * monLayoutCanvas.monScale
                             height: (modelData.height / modelData.scale) * monLayoutCanvas.monScale
 
-                            color: root.selectedMonitorIdx === index ? Theme.blue : Theme.surface
-                            opacity: modelData.enabled ? 1.0 : 0.35
-                            border.width: 0
-                            radius: 0
+                            radius: Theme.radiusSm
+                            color: sel ? Theme.alpha(Theme.accent, 0.18) : Theme.hover
+                            border.width: sel ? 2 : 1
+                            border.color: sel ? Theme.accent : Theme.hairline
+                            opacity: modelData.enabled ? 1.0 : 0.4
 
-                            // Selection outline drawn outside bounds so it doesn't affect adjacency
-                            Rectangle {
-                                visible: root.selectedMonitorIdx === index
-                                anchors { fill: parent; margins: -2 }
-                                color: "transparent"
-                                border.color: Theme.blue
-                                border.width: 2
-                                radius: 2
-                                z: 1
-                            }
+                            TapHandler { onTapped: root.selectedMonitorIdx = index }
 
                             Column {
                                 anchors.centerIn: parent
-                                spacing: 3
+                                spacing: 2
 
-                                Text {
+                                Label {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: modelData.name
-                                    color: root.selectedMonitorIdx === index ? Theme.base : Theme.text
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: Math.max(8, Math.min(13, monLayoutCanvas.monScale * 40))
-                                    font.bold: true
+                                    font.pixelSize: Math.max(10, Math.min(14, monLayoutCanvas.monScale * 40))
+                                    font.weight: Font.DemiBold
                                 }
 
-                                Text {
+                                Label {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: Math.round(modelData.width / modelData.scale) + "×" + Math.round(modelData.height / modelData.scale)
-                                    color: root.selectedMonitorIdx === index ? Theme.base : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: Math.max(7, Math.min(10, monLayoutCanvas.monScale * 30))
-                                }
-
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: modelData.x + "x" + modelData.y
-                                    color: root.selectedMonitorIdx === index ? Theme.base : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: Math.max(7, Math.min(10, monLayoutCanvas.monScale * 30))
+                                    text: Math.round(modelData.width / modelData.scale) + " × " + Math.round(modelData.height / modelData.scale)
+                                    color: Theme.subtext
+                                    font.pixelSize: Theme.textXs
                                 }
                             }
-
                         }
                     }
                 }
 
                 // ── Workspace assignment panel ──────────────────
-                Rectangle {
+                Column {
                     id: wsPanel
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    height: 76
-                    color: Theme.surface
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; leftMargin: 20; rightMargin: 20; bottomMargin: 16 }
+                    spacing: 8
 
-                    Rectangle {
-                        anchors { top: parent.top; left: parent.left; right: parent.right }
-                        height: 1; color: Theme.border
+                    SectionLabel {
+                        property var selMon: root.systemMonitors[root.selectedMonitorIdx]
+                        text: selMon ? "Workspaces on " + selMon.name : "Workspaces"
                     }
 
-                    Column {
-                        anchors { fill: parent; topMargin: 8; leftMargin: 16; rightMargin: 16; bottomMargin: 8 }
-                        spacing: 6
+                    Row {
+                        id: wsChipRow
+                        width: parent.width
+                        spacing: 4
 
-                        Text {
-                            property var selMon: root.systemMonitors[root.selectedMonitorIdx]
-                            text: selMon ? "workspaces → " + selMon.name : "workspaces"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 3
-                        }
+                        Repeater {
+                            model: 10
+                            delegate: Rectangle {
+                                required property int index
+                                property string ws: String(index + 1)
+                                property var rule: root.workspaceRules.find(r => r.workspace === ws) || null
+                                property var selMon: root.systemMonitors[root.selectedMonitorIdx]
+                                property bool onSelectedMon: rule && selMon && rule.monitor === selMon.name
 
-                        Row {
-                            id: wsChipRow
-                            width: parent.width
-                            spacing: 4
+                                width: (wsChipRow.width - 9 * wsChipRow.spacing) / 10
+                                height: 40
+                                radius: Theme.radiusSm
+                                color: onSelectedMon ? Theme.accent : Theme.hover
 
-                            Repeater {
-                                model: 10
-                                delegate: Rectangle {
-                                    required property int index
-                                    property string ws: String(index + 1)
-                                    property var rule: root.workspaceRules.find(r => r.workspace === ws) || null
-                                    property var selMon: root.systemMonitors[root.selectedMonitorIdx]
-                                    property bool onSelectedMon: rule && selMon && rule.monitor === selMon.name
-                                    property bool onOtherMon: rule && selMon && rule.monitor !== selMon.name
-                                    property int otherMonIdx: onOtherMon ? root.systemMonitors.findIndex(m => m.name === rule.monitor) : -1
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 1
 
-                                    width: (wsChipRow.width - 9 * wsChipRow.spacing) / 10; height: 36; radius: 3
-                                    color: onSelectedMon ? Theme.blue : Theme.surface
+                                    Label {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        text: ws
+                                        color: onSelectedMon ? Theme.base : Theme.text
+                                        font.weight: Font.Medium
+                                    }
 
-                                    Column {
-                                        anchors.centerIn: parent
-                                        spacing: 1
-
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: ws
-                                            color: onSelectedMon ? Theme.base : Theme.text
-                                            font.family: "JetBrains Mono"
-                                            font.pixelSize: sf
-                                        }
-
-                                        Text {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            text: onSelectedMon ? "✓" : (onOtherMon && otherMonIdx >= 0 ? root.systemMonitors[otherMonIdx].name : (rule ? rule.monitor : "—"))
-                                            color: onSelectedMon ? Theme.base : (onOtherMon ? Theme.subtext : Theme.surface)
-                                            font.family: "JetBrains Mono"
-                                            font.pixelSize: sf - 4
-                                        }
+                                    Label {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        visible: !!rule && !onSelectedMon
+                                        text: rule ? rule.monitor : ""
+                                        color: Theme.subtext
+                                        font.pixelSize: 9
+                                        width: Math.min(implicitWidth, wsChipRow.width / 10 - 4)
+                                        elide: Text.ElideRight
                                     }
                                 }
+
+                                TapHandler {
+                                    onTapped: { if (selMon) root.setWorkspaceMonitor(ws, selMon.name) }
+                                }
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
                             }
                         }
                     }
                 }
             }
+
             // ── Palette ────────────────────────────────────────
             Item {
                 anchors.fill: parent
                 visible: root.activeSubPage === "palette"
 
-                Rectangle {
+                PageHeader {
                     id: paletteHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "palette"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
+                    title: "Color palette"
+                    detail: Theme.name === "custom" ? "From wallpaper" : ""
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: paletteDivider; anchors.top: paletteHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: paletteList
-                    anchors { left: parent.left; right: parent.right; top: paletteDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: paletteHeader.bottom; bottom: parent.bottom; bottomMargin: 8 }
                     model: root.paletteOptions
                     clip: true
                     interactive: false
 
-                    delegate: Item {
+                    delegate: Loader {
+                        id: paletteDelegate
                         required property var modelData
                         required property int index
-                        property bool isSection: paletteDelegate.modelData.type === "section"
-                        property bool isSelected: root.selectedIndex === index
-
                         width: paletteList.width
-                        height: isSection ? 32 : 40
+                        sourceComponent: modelData.type === "section" ? paletteSection : paletteRow
 
-                        id: paletteDelegate
-
-                        // Section header background
-                        Rectangle {
-                            anchors.fill: parent
-                            visible: paletteDelegate.isSection
-                            color: Theme.surface
-
-                            Text {
-                                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                                text: paletteDelegate.modelData.label || ""
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 2
-                                font.bold: true
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: { /* sections are not selectable */ }
+                        Component {
+                            id: paletteSection
+                            Item {
+                                width: paletteList.width
+                                height: 36
+                                SectionLabel {
+                                    anchors { left: parent.left; leftMargin: 20; bottom: parent.bottom; bottomMargin: 6 }
+                                    text: paletteDelegate.modelData.label
+                                }
                             }
                         }
 
-                        // Palette item (interactive)
-                        Rectangle {
-                            anchors.fill: parent
-                            visible: !paletteDelegate.isSection
-                            color: paletteDelegate.isSelected ? Theme.border : "transparent"
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
+                        Component {
+                            id: paletteRow
+                            ListRow {
+                                width: paletteList.width
+                                height: 40
+                                selected: root.selectedIndex === paletteDelegate.index
+                                label: paletteDelegate.modelData.label
                                 onClicked: {
                                     root.selectedIndex = paletteDelegate.index
                                     Theme.name = paletteDelegate.modelData.id
                                 }
-                            }
 
-                            Row {
-                                anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                                spacing: 14
-
-                                Text {
-                                    text: paletteDelegate.isSelected ? ">" : " "
-                                    color: Theme.blue
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                    verticalAlignment: Text.AlignVCenter
+                                Icon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: Theme.name === paletteDelegate.modelData.id
+                                    name: "check"
+                                    size: 16
+                                    color: Theme.accent
                                 }
 
-                                Text {
-                                    text: modelData.label
-                                    color: paletteDelegate.isSelected ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
-
-                            Row {
-                                anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                                spacing: 4
-
-                                Repeater {
-                                    model: modelData.swatches
-                                    delegate: Rectangle {
-                                        required property var modelData
-                                        width: 10; height: 10; radius: 5
-                                        color: modelData
-                                    }
-                                }
-                            }
-
-                            Text {
-                                anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                                visible: Theme.name === modelData.id
-                                text: "*"
-                                color: Theme.green
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
+                                Swatches { anchors.verticalCenter: parent.verticalCenter; colors: paletteDelegate.modelData.swatches }
                             }
                         }
-                    }
-                }
-            }
-
-            // ── Design ────────────────────────────────────────
-            Item {
-                anchors.fill: parent
-                visible: root.activeSubPage === "design"
-
-                Rectangle {
-                    id: designHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "bar design"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                }
-
-                Rectangle { id: designDivider; anchors.top: designHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                ListView {
-                    id: designList
-                    anchors { left: parent.left; right: parent.right; top: designDivider.bottom; bottom: parent.bottom }
-                    model: root.designOptions
-                    clip: true
-                    interactive: false
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        required property int index
-
-                        width: designList.width
-                        height: 56
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-
-                                Text {
-                                    text: modelData.label
-                                    color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                }
-
-                                Text {
-                                    text: modelData.desc
-                                    color: Theme.purple
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 3
-                                }
-                            }
-                        }
-
-                        // Visual preview of the design layout
-                        Row {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 4
-
-                            Repeater {
-                                model: modelData.bars
-                                Rectangle {
-                                    width: modelData.bars === 1 ? 60 : modelData.bars === 5 ? 10 : 18
-                                    height: modelData.barH
-                                    radius: modelData.bars === 3 ? 4 : modelData.bars === 5 ? modelData.barH / 2 : 2
-                                    color: root.selectedIndex === index ? Theme.blue : Theme.subtext
-                                    opacity: root.selectedIndex === index ? 0.7 : 0.35
-                                }
-                            }
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            visible: Theme.design === modelData.id
-                            text: "*"
-                            color: Theme.green
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                        }
-
                     }
                 }
             }
@@ -4251,281 +3094,76 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "bar"
 
-                Rectangle {
+                PageHeader {
                     id: barHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "bar elements"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        text: root.barModules.length + " modules"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 2
-                    }
+                    title: "Bar layout"
+                    detail: "Enter cycles position"
+                    onBackClicked: keyNav.goBack()
                 }
-
-                Rectangle { id: barDivider; anchors.top: barHeader.bottom; width: parent.width; height: 1; color: Theme.border }
 
                 ListView {
                     id: barListView
-                    anchors { left: parent.left; right: parent.right; top: barDivider.bottom; bottom: parent.bottom }
+                    anchors { left: parent.left; right: parent.right; top: barHeader.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                     model: root.barModules
                     clip: true
-                    interactive: false
 
-                    delegate: Rectangle {
+                    delegate: ListRow {
+                        id: barRow
                         required property var modelData
                         required property int index
+                        readonly property string pos: Theme[modelData.id] || "disabled"
+                        selected: root.selectedIndex === index
+                        label: modelData.label
+                        labelColor: pos === "disabled" ? Theme.subtext : Theme.text
+                        onClicked: { root.selectedIndex = index; keyNav.activateItem() }
 
-                        width: barListView.width
-                        height: 44
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: root.selectedIndex === index ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                text: modelData.label
-                                color: root.selectedIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-
+                        // Segmented control: left · center · right · off
                         Rectangle {
-                            anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                            property string pos: Theme[modelData.id] || "disabled"
-                            property int posIdx: pos === "left" ? 0 : pos === "center" ? 1 : pos === "right" ? 2 : 3
-                            width: 80; height: 20; radius: 10
-                            color: posIdx === 0 ? Theme.blue
-                                 : posIdx === 1 ? Theme.purple
-                                 : posIdx === 2 ? Theme.green
-                                 : Theme.border
-                            Behavior on color { ColorAnimation { duration: 180 } }
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 200
+                            height: 28
+                            radius: Theme.radiusSm + 2
+                            color: Theme.hover
+
+                            readonly property var options: ["left", "center", "right", "disabled"]
+                            readonly property int idx: Math.max(0, options.indexOf(barRow.pos))
+
                             Rectangle {
-                                property int idx: parent.posIdx
-                                width: 12; height: 12; radius: 6
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: Theme.base
-                                x: idx === 0 ? 3 : idx === 1 ? 24 : idx === 2 ? 45 : 65
-                                Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                width: (parent.width - 4) / 4
+                                height: parent.height - 4
+                                y: 2
+                                x: 2 + parent.idx * width
+                                radius: Theme.radiusSm
+                                color: barRow.pos === "disabled" ? Theme.selected : Theme.accent
+                                Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                             }
+
+                            Row {
+                                x: 2
+                                anchors.verticalCenter: parent.verticalCenter
+                                Repeater {
+                                    model: ["Left", "Center", "Right", "Off"]
+                                    Label {
+                                        required property string modelData
+                                        required property int index
+                                        width: 49
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: modelData
+                                        color: index === parent.parent.idx && barRow.pos !== "disabled" ? Theme.base : Theme.subtext
+                                        font.pixelSize: Theme.textXs
+                                        font.weight: Font.Medium
+                                    }
+                                }
+                            }
+
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.selectedIndex = index
-                                    const positions = ["left", "center", "right", "disabled"]
-                                    Theme[modelData.id] = positions[Math.min(3, Math.floor(mouseX / width * 4))]
+                                onClicked: mouse => {
+                                    root.selectedIndex = barRow.index
+                                    Theme[barRow.modelData.id] = parent.options[Math.min(3, Math.floor(mouse.x / width * 4))]
                                 }
                             }
-                        }
-
-                    }
-                }
-            }
-
-            // ── Lock Screen ───────────────────────────────────
-            Item {
-                anchors.fill: parent
-                visible: root.activeSubPage === "lockscreen"
-
-                Rectangle {
-                    id: lockscreenHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            text: "lock screen"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                }
-
-                Rectangle { id: lockscreenDivider; anchors.top: lockscreenHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
-                ListView {
-                    id: lockscreenList
-                    anchors { left: parent.left; right: parent.right; top: lockscreenDivider.bottom; bottom: parent.bottom }
-                    model: root.lockscreenOptions
-                    clip: true
-                    interactive: false
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        required property int index
-
-                        width: lockscreenList.width
-                        height: 60
-                        color: root.selectedIndex === index ? Theme.border : "transparent"
-
-                        property bool active: root.selectedIndex === index
-                        property color previewColor: active ? Theme.blue : Theme.subtext
-                        property real previewOpacity: active ? 0.7 : 0.35
-
-                        Row {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            spacing: 14
-
-                            Text {
-                                text: active ? ">" : " "
-                                color: Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-
-                                Text {
-                                    text: modelData.label
-                                    color: active ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                }
-
-                                Text {
-                                    text: modelData.desc
-                                    color: Theme.purple
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 3
-                                }
-                            }
-                        }
-
-                        // Visual preview schematic
-                        Item {
-                            anchors { right: parent.right; rightMargin: 56; verticalCenter: parent.verticalCenter }
-                            width: 62; height: 44
-
-                            // default: clock block + separator + password box
-                            Column {
-                                visible: modelData.id === "default"
-                                anchors.centerIn: parent
-                                spacing: 3
-                                Rectangle { width: 54; height: 14; radius: 2; color: previewColor; opacity: previewOpacity }
-                                Rectangle { width: 54; height: 1;  color: previewColor; opacity: previewOpacity * 0.5 }
-                                Rectangle { width: 54; height: 12; radius: 2; color: previewColor; opacity: previewOpacity * 0.6 }
-                            }
-
-                            // minimal: floating pill
-                            Rectangle {
-                                visible: modelData.id === "minimal"
-                                anchors.centerIn: parent
-                                width: 46; height: 16; radius: 8
-                                color: "transparent"; border.width: 1
-                                border.color: previewColor; opacity: previewOpacity
-                            }
-
-                            // clock: large time block + small pill
-                            Column {
-                                visible: modelData.id === "clock"
-                                anchors.centerIn: parent
-                                spacing: 4
-                                Rectangle { width: 54; height: 22; radius: 2; color: previewColor; opacity: previewOpacity }
-                                Rectangle { width: 54; height: 10; radius: 5; color: previewColor; opacity: previewOpacity * 0.6 }
-                            }
-
-                            // terminal: card outline with lines
-                            Rectangle {
-                                visible: modelData.id === "terminal"
-                                anchors.centerIn: parent
-                                width: 54; height: 40; radius: 4
-                                color: "transparent"; border.width: 1
-                                border.color: previewColor; opacity: previewOpacity
-
-                                Column {
-                                    anchors { left: parent.left; top: parent.top; margins: 5 }
-                                    spacing: 4
-                                    Rectangle { width: 22; height: 3; radius: 1; color: previewColor; opacity: previewOpacity }
-                                    Rectangle { width: 38; height: 1; color: previewColor; opacity: previewOpacity * 0.5 }
-                                    Rectangle { width: 14; height: 3; radius: 1; color: previewColor; opacity: previewOpacity * 0.6 }
-                                }
-                            }
-
-                            // random: dice / question mark preview
-                            Text {
-                                visible: modelData.id === "random"
-                                anchors.centerIn: parent
-                                text: "?"
-                                color: previewColor
-                                opacity: previewOpacity
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: 28; font.bold: true
-                            }
-
-                            // split: two columns with divider
-                            Item {
-                                visible: modelData.id === "split"
-                                anchors.centerIn: parent
-                                width: 50; height: 36
-
-                                Rectangle { x: 0;  y: 1;  width: 22; height: 34; radius: 2; color: previewColor; opacity: previewOpacity }
-                                Rectangle { x: 24; y: 3;  width: 1;  height: 30; color: previewColor; opacity: previewOpacity * 0.5 }
-                                Rectangle { x: 27; y: 9;  width: 22; height: 18; radius: 2; color: previewColor; opacity: previewOpacity * 0.6 }
-                            }
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            visible: Theme.lockDesign === modelData.id
-                            text: "*"
-                            color: Theme.green
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
                         }
                     }
                 }
@@ -4536,241 +3174,82 @@ FloatingWindow {
                 anchors.fill: parent
                 visible: root.activeSubPage === "wallpapers"
 
-                Rectangle {
+                PageHeader {
                     id: wpTagsHeader
-                    width: parent.width
-                    height: 44
-                    color: Theme.surface
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-                        Text {
-                            text: "< back"
-                            color: Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 1
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        Text {
-                            text: "wallpaper tags"
-                            color: Theme.purple
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf + 1
-                            font.bold: true
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-
-                    Column {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-
-                        Text {
-                            anchors.right: parent.right
-                            text: root.wpTagged + " / " + root.wpTotal + " tagged"
-                            color: root.wpTagging ? Theme.green : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                        }
-
-                        Text {
-                            anchors.right: parent.right
-                            text: root.wpOllamaOk ? "● ollama" : "● ollama unavailable"
-                            color: root.wpOllamaOk ? Theme.green : Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 3
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                        }
-                    }
+                    title: "Wallpaper tags"
+                    detail: root.wpTagged + " of " + root.wpTotal + " tagged"
+                    onBackClicked: keyNav.goBack()
                 }
 
-                Rectangle { id: wpTagsDivider; anchors.top: wpTagsHeader.bottom; width: parent.width; height: 1; color: Theme.border }
-
                 Column {
-                    anchors { left: parent.left; right: parent.right; top: wpTagsDivider.bottom }
+                    anchors { left: parent.left; right: parent.right; top: wpTagsHeader.bottom; topMargin: 8 }
 
-                    // Row 0: min category size
-                    Rectangle {
-                        width: parent.width
-                        height: 52
-                        color: root.selectedIndex === 0 ? Theme.border : "transparent"
-
-                        Text {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: (root.selectedIndex === 0 ? "> " : "  ") + "min category size"
-                            color: root.selectedIndex === 0 ? Theme.text : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: "< " + root.wpMinCat + " >"
-                            color: root.selectedIndex === 0 ? Theme.blue : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
+                    ListRow {
+                        selected: root.selectedIndex === 0
+                        label: "Minimum category size"
+                        sublabel: "Tags with fewer wallpapers are hidden in the picker"
+                        onClicked: root.selectedIndex = 0
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "‹  " + root.wpMinCat + "  ›"
+                            color: Theme.subtext
                         }
                     }
 
-                    // Row 1: tag hints (auto-height, wrapping)
-                    Rectangle {
-                        width: parent.width
-                        height: hintsCol.implicitHeight + 24
-                        color: root.selectedIndex === 1 ? Theme.border : "transparent"
+                    ListRow {
+                        selected: root.selectedIndex === 1
+                        label: "Tag hints"
+                        sublabel: root.wpHintsEditMode ? root.wpHintsInput + "▏"
+                                : root.wpTagHints !== "" ? root.wpTagHints : "None · Enter to edit"
+                        onClicked: { root.selectedIndex = 1; keyNav.activateItem() }
+                    }
 
-                        Column {
-                            id: hintsCol
-                            anchors {
-                                left: parent.left; leftMargin: 20
-                                right: parent.right; rightMargin: 20
-                                top: parent.top; topMargin: 12
-                            }
-                            spacing: 6
-
-                            Row {
-                                spacing: 8
-                                Text {
-                                    text: (root.selectedIndex === 1 ? "> " : "  ") + "tag hints"
-                                    color: root.selectedIndex === 1 ? Theme.text : Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf
-                                }
-                                Text {
-                                    visible: root.selectedIndex === 1 && !root.wpHintsEditMode
-                                    text: "(enter to edit)"
-                                    color: Theme.subtext
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: sf - 3
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-
-                            Text {
-                                width: parent.width
-                                text: root.wpHintsEditMode
-                                    ? root.wpHintsInput + "█"
-                                    : (root.wpTagHints || "(none)")
-                                color: root.wpHintsEditMode ? Theme.green
-                                     : root.wpTagHints      ? Theme.purple
-                                     : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 2
-                                font.italic: !root.wpTagHints && !root.wpHintsEditMode
-                                wrapMode: Text.WordWrap
-                            }
+                    ListRow {
+                        selected: root.selectedIndex === 2
+                        label: "Vision model"
+                        onClicked: root.selectedIndex = 2
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.wpOllamaOk ? "‹  " + root.wpVisionModel + "  ›" : "Unavailable"
+                            color: root.wpOllamaOk ? Theme.subtext : Theme.red
+                            font.pixelSize: Theme.textSm
                         }
                     }
 
-                    // Row 2: vision model
-                    Rectangle {
-                        width: parent.width
-                        height: 52
-                        color: root.selectedIndex === 2 ? Theme.border : "transparent"
-
-                        Text {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: (root.selectedIndex === 2 ? "> " : "  ") + "vision model"
-                            color: root.selectedIndex === 2 ? Theme.text : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: root.wpOllamaOk
-                                ? "< " + root.wpVisionModel + " >"
-                                : "unavailable"
-                            color: root.wpOllamaOk
-                                ? (root.selectedIndex === 2 ? Theme.blue : Theme.subtext)
-                                : Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
+                    ListRow {
+                        selected: root.selectedIndex === 3
+                        label: "Text model"
+                        onClicked: root.selectedIndex = 3
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.wpOllamaOk ? "‹  " + root.wpTextModel + "  ›" : "Unavailable"
+                            color: root.wpOllamaOk ? Theme.subtext : Theme.red
+                            font.pixelSize: Theme.textSm
                         }
                     }
 
-                    // Row 3: text model
-                    Rectangle {
-                        width: parent.width
-                        height: 52
-                        color: root.selectedIndex === 3 ? Theme.border : "transparent"
-
-                        Text {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: (root.selectedIndex === 3 ? "> " : "  ") + "text model"
-                            color: root.selectedIndex === 3 ? Theme.text : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: root.wpOllamaOk
-                                ? "< " + root.wpTextModel + " >"
-                                : "unavailable"
-                            color: root.wpOllamaOk
-                                ? (root.selectedIndex === 3 ? Theme.blue : Theme.subtext)
-                                : Theme.red
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
+                    ListRow {
+                        selected: root.selectedIndex === 4
+                        label: "Retag all wallpapers"
+                        sublabel: root.wpOllamaOk ? "Uses the local Ollama models above" : "Ollama is not running"
+                        onClicked: { root.selectedIndex = 4; keyNav.activateItem() }
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.wpTagging ? "Tagging…" : "Start"
+                            color: root.wpTagging ? Theme.accent : Theme.subtext
+                            font.pixelSize: Theme.textSm
                         }
                     }
 
-                    // Row 4: retag all wallpapers
-                    Rectangle {
-                        width: parent.width
-                        height: 52
-                        color: root.selectedIndex === 4 ? Theme.border : "transparent"
-
-                        Text {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: (root.selectedIndex === 4 ? "> " : "  ") + "retag all wallpapers"
-                            color: root.selectedIndex === 4 ? Theme.text : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: root.wpTagging ? "tagging…"
-                                : !root.wpOllamaOk ? "ollama unavailable"
-                                : "enter to start"
-                            color: root.wpTagging ? Theme.green
-                                : !root.wpOllamaOk ? Theme.red
-                                : (root.selectedIndex === 4 ? Theme.blue : Theme.subtext)
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-                    }
-
-                    // Row 5: generate thumbnails
-                    Rectangle {
-                        width: parent.width
-                        height: 52
-                        color: root.selectedIndex === 5 ? Theme.border : "transparent"
-
-                        Text {
-                            anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: (root.selectedIndex === 5 ? "> " : "  ") + "generate thumbnails"
-                            color: root.selectedIndex === 5 ? Theme.text : Theme.subtext
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Text {
-                            anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                            text: root.wpGenThumb ? "generating…" : "enter to start"
-                            color: root.wpGenThumb ? Theme.green : (root.selectedIndex === 5 ? Theme.blue : Theme.subtext)
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf - 2
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                    ListRow {
+                        selected: root.selectedIndex === 5
+                        label: "Generate thumbnails"
+                        onClicked: { root.selectedIndex = 5; keyNav.activateItem() }
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.wpGenThumb ? "Generating…" : "Start"
+                            color: root.wpGenThumb ? Theme.accent : Theme.subtext
+                            font.pixelSize: Theme.textSm
                         }
                     }
                 }
@@ -4788,37 +3267,36 @@ FloatingWindow {
 
             Rectangle { anchors.fill: parent; color: Theme.base }
 
+            // Search field
             Rectangle {
                 id: searchBar
-                width: parent.width
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
                 height: 44
-                color: Theme.surface
+                radius: Theme.radiusMd
+                color: Theme.hover
+
+                Icon {
+                    id: searchIcon
+                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    name: "magnify"
+                    size: 18
+                    color: Theme.subtext
+                }
 
                 Row {
-                    anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                    spacing: 8
+                    anchors { left: searchIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                    spacing: 1
 
-                    Text {
-                        text: "/"
-                        color: Theme.purple
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf + 1
-                        font.bold: true
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    Text {
+                    Label {
+                        anchors.verticalCenter: parent.verticalCenter
                         text: root.searchQuery
-                        color: Theme.text
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf
-                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: Theme.textLg - 2
                     }
 
                     Rectangle {
                         width: 2
-                        height: 14
-                        color: Theme.blue
+                        height: 20
+                        color: Theme.accent
                         anchors.verticalCenter: parent.verticalCenter
 
                         SequentialAnimation on opacity {
@@ -4830,306 +3308,197 @@ FloatingWindow {
                     }
                 }
 
-                Text {
-                    anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                    text: ((Theme.vimBinds && root.vimSearchMode) || root.immediateSearch) && root.searchQuery === "" ? "type to search"
-                        : root.searchResults.length === 0 ? "no results"
-                        : root.searchResults.length + " result" + (root.searchResults.length === 1 ? "" : "s")
+                Label {
+                    anchors { left: searchIcon.right; leftMargin: 13; verticalCenter: parent.verticalCenter }
+                    visible: root.searchQuery === ""
+                    text: "Search apps, settings, files, emoji…"
                     color: Theme.subtext
-                    font.family: "JetBrains Mono"
-                    font.pixelSize: sf - 2
+                    font.pixelSize: Theme.textLg - 2
+                }
+
+                Label {
+                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                    visible: root.searchQuery !== ""
+                    text: root.searchResults.length === 0 ? "No results"
+                        : root.searchResults.length + (root.searchResults.length === 1 ? " result" : " results")
+                    color: Theme.subtext
+                    font.pixelSize: Theme.textSm
                 }
             }
 
-            Rectangle { id: searchDivider; anchors.top: searchBar.bottom; width: parent.width; height: 1; color: Theme.border }
-
             ListView {
                 id: searchList
-                anchors { left: parent.left; right: parent.right; top: searchDivider.bottom; bottom: parent.bottom }
+                anchors { left: parent.left; right: parent.right; top: searchBar.bottom; bottom: parent.bottom; topMargin: 8; bottomMargin: 8 }
                 model: root.searchResults
                 clip: true
 
-                delegate: Rectangle {
+                delegate: ListRow {
+                    id: resultRow
                     required property var modelData
                     required property int index
+                    readonly property string kind: modelData.type
+                    selected: root.selectedSearchIndex === index
+                    label: kind === "math" ? "= " + modelData.label
+                         : kind === "web" ? "Search the web for “" + modelData.label + "”"
+                         : modelData.label
+                    mono: kind === "clipboard" || kind === "file"
+                    sublabel: kind === "layout" ? modelData.desc
+                            : kind === "menu" ? "Settings"
+                            : kind === "file" ? (modelData.isDir ? "Folder" : "File")
+                            : kind === "math" ? modelData.expr + " · Enter to copy"
+                            : kind === "web" ? "DuckDuckGo"
+                            : kind === "clipboard" ? "Clipboard"
+                            : kind === "system_item" ? (modelData.sub || "System setting")
+                            : kind === "bar_module" ? "Bar layout"
+                            : kind === "emoji" ? "Emoji"
+                            : kind === "wifi" ? (modelData.inUse ? "Wi-Fi · Connected" : "Wi-Fi")
+                            : kind === "bluetooth" ? (modelData.connected ? "Bluetooth · Connected" : "Bluetooth")
+                            : kind === "app" ? "Application"
+                            : kind === "wallpaper" ? "Wallpaper"
+                            : kind === "palette" ? "Color palette"
+                            : ""
+                    icon: kind === "menu" ? "cog"
+                        : kind === "file" ? (modelData.isDir ? "folder" : "file")
+                        : kind === "math" ? "calculator"
+                        : kind === "web" ? "web"
+                        : kind === "clipboard" ? "clipboard"
+                        : kind === "system_item" || kind === "bar_module" ? "cog"
+                        : kind === "wifi" ? "wifi"
+                        : kind === "bluetooth" ? "bluetooth"
+                        : kind === "palette" ? "palette"
+                        : ""
+                    leading: kind === "app" ? appIconComp
+                           : kind === "emoji" ? emojiComp
+                           : kind === "wallpaper" ? wallpaperComp
+                           : kind === "layout" ? layoutComp
+                           : null
+                    onClicked: { root.selectedSearchIndex = index; keyNav.activateSearchItem() }
 
-                    width: searchList.width
-                    height: 52
-                    color: root.selectedSearchIndex === index ? Theme.border : "transparent"
-
-                    Rectangle {
-                        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                        height: 1
-                        color: Theme.border
-                        opacity: 0.3
-                    }
-
-                    Row {
-                        anchors { left: parent.left; leftMargin: 20; verticalCenter: parent.verticalCenter }
-                        spacing: 14
-
-                        Text {
-                            text: root.selectedSearchIndex === index ? ">" : " "
-                            color: Theme.blue
-                            font.family: "JetBrains Mono"
-                            font.pixelSize: sf
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        Column {
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 3
-
-                            Text {
-                                text: modelData.label
-                                color: modelData.type === "math" ? Theme.green
-                                     : root.selectedSearchIndex === index ? Theme.text : Theme.subtext
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: modelData.type === "math" ? sf + 3 : sf
-                                font.bold: modelData.type === "math"
-                                elide: modelData.type === "clipboard" ? Text.ElideRight : Text.ElideNone
-                                width: modelData.type === "clipboard" ? searchList.width - 100 : implicitWidth
-                            }
-
-                            Text {
-                                text: modelData.type === "design" || modelData.type === "layout" ? modelData.desc
-                                    : modelData.type === "menu" ? "open menu"
-                                    : modelData.type === "file" ? (modelData.isDir ? "directory" : "file")
-                                    : modelData.type === "math" ? modelData.expr
-                                    : modelData.type === "web"       ? "search the web"
-                                    : modelData.type === "clipboard" ? "clipboard"
-                                    : modelData.type === "system_item" ? (modelData.sub || "system setting")
-                                    : modelData.type === "bar_module" ? "bar module"
-                                    : modelData.type === "emoji" ? "emoji"
-                                    : modelData.type === "wifi" ? (modelData.inUse ? "connected" : "wifi")
-                                    : modelData.type
-                                color: modelData.type === "wallpaper"  ? Theme.teal
-                                     : modelData.type === "palette"    ? Theme.yellow
-                                     : modelData.type === "bluetooth"  ? Theme.blue
-                                     : modelData.type === "wifi"       ? (modelData.inUse ? Theme.green : Theme.teal)
-                                     : modelData.type === "design"     ? Theme.purple
-                                     : modelData.type === "layout"     ? Theme.teal
-                                     : modelData.type === "menu"       ? Theme.purple
-                                     : modelData.type === "file"       ? (modelData.isDir ? Theme.blue : Theme.subtext)
-                                     : modelData.type === "math"       ? Theme.subtext
-                                     : modelData.type === "web"        ? Theme.yellow
-                                     : modelData.type === "clipboard"  ? Theme.teal
-                                     : modelData.type === "system_item" ? Theme.blue
-                                     : modelData.type === "bar_module" ? Theme.purple
-                                     : Theme.blue
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: sf - 3
-                            }
-                        }
-                    }
-
-                    // Wallpaper thumbnail
-                    Rectangle {
-                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        width: 80; height: 45; radius: 4
-                        color: Theme.surface
-                        clip: true
-                        visible: modelData.type === "wallpaper"
-
+                    Component {
+                        id: appIconComp
                         Image {
-                            anchors.fill: parent
-                            source: modelData.type === "wallpaper" ? "file://" + root.wallpapersDir + modelData.file : ""
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            smooth: true
-                        }
-                    }
-
-                    // App icon
-                    Rectangle {
-                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        width: 45; height: 45; radius: 4
-                        color: Theme.surface
-                        clip: true
-                        visible: modelData.type === "app"
-
-                        Image {
-                            anchors.centerIn: parent
-                            width: 32; height: 32
-                            source: modelData.type === "app" ? root.resolveIcon(modelData.icon) : ""
-                            sourceSize: Qt.size(32, 32)
+                            width: 28; height: 28
+                            source: root.resolveIcon(resultRow.modelData.icon)
+                            sourceSize: Qt.size(56, 56)
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
-                            smooth: true
                         }
                     }
-
-                    // Bluetooth status dot
-                    Rectangle {
-                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        width: 45; height: 45; radius: 4
-                        color: Theme.surface
-                        visible: modelData.type === "bluetooth"
-
+                    Component {
+                        id: emojiComp
+                        Text {
+                            width: 28
+                            text: resultRow.modelData.e
+                            font.pixelSize: 20
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+                    Component {
+                        id: wallpaperComp
                         Rectangle {
-                            anchors.centerIn: parent
-                            width: 10; height: 10; radius: 5
-                            color: modelData.type === "bluetooth" && modelData.connected ? Theme.green
-                                 : modelData.type === "bluetooth" && modelData.paired    ? Theme.blue
-                                 : Theme.subtext
-                            opacity: (modelData.type === "bluetooth" && modelData.connected) ? 1.0 : 0.35
-                        }
-                    }
-
-                    // WiFi signal bars
-                    Text {
-                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                        visible: modelData.type === "wifi"
-                        text: modelData.type === "wifi"
-                            ? (modelData.signal >= 75 ? "▂▄▆█"
-                             : modelData.signal >= 50 ? "▂▄▆ "
-                             : modelData.signal >= 25 ? "▂▄  "
-                             :                          "▂   ")
-                            : ""
-                        color: modelData.type === "wifi"
-                             ? (modelData.signal >= 75 ? Theme.green
-                              : modelData.signal >= 50 ? Theme.yellow
-                              : modelData.signal >= 25 ? Theme.teal
-                              :                          Theme.red)
-                             : Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 1
-                    }
-
-                    // Palette swatches
-                    Row {
-                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        spacing: 4
-                        visible: modelData.type === "palette"
-
-                        Repeater {
-                            model: modelData.type === "palette" ? modelData.swatches : []
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: 10; height: 10; radius: 5
-                                color: modelData
+                            width: 48; height: 30
+                            radius: Theme.radiusSm
+                            color: Theme.hover
+                            clip: true
+                            Image {
+                                anchors.fill: parent
+                                source: "file://" + root.wallpapersDir + resultRow.modelData.file
+                                sourceSize: Qt.size(96, 60)
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
                             }
                         }
                     }
-
-                    // Layout diagram
-                    Rectangle {
-                        id: layoutSearchPrev
-                        property var res: modelData
-                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        visible: layoutSearchPrev.res.type === "layout"
-                        width: 45; height: 45; radius: 4; color: Theme.surface
-
-                            Row {
-                                visible: layoutSearchPrev.res.type === "layout" && layoutSearchPrev.res.id === "dwindle"
-                                anchors.centerIn: parent; spacing: 1
-                                Rectangle { width: 16; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Column {
-                                    spacing: 1
-                                    Rectangle { width: 20; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                    Row {
-                                        spacing: 1
-                                        Rectangle { width: 9; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                        Rectangle { width: 9; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                    }
-                                }
-                            }
-                            Row {
-                                visible: layoutSearchPrev.res.type === "layout" && layoutSearchPrev.res.id === "master"
-                                anchors.centerIn: parent; spacing: 1
-                                Rectangle { width: 20; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Column {
-                                    spacing: 1
-                                    Rectangle { width: 16; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                    Rectangle { width: 16; height: 18; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                }
-                            }
-                            Row {
-                                visible: layoutSearchPrev.res.type === "layout" && layoutSearchPrev.res.id === "scrolling"
-                                anchors.centerIn: parent; spacing: 1
-                                Rectangle { width: 11; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Rectangle { width: 11; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                                Rectangle { width: 11; height: 37; radius: 2; color: Theme.blue; opacity: 0.45 }
-                            }
-                            Rectangle {
-                                visible: layoutSearchPrev.res.type === "layout" && layoutSearchPrev.res.id === "monocle"
-                                anchors.centerIn: parent
-                                width: 37; height: 37; radius: 2; color: Theme.blue; opacity: 0.45
-                            }
+                    Component {
+                        id: layoutComp
+                        LayoutGlyph { layoutId: resultRow.modelData.id }
                     }
 
-                    // Menu / directory arrow
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        visible: modelData.type === "menu" || (modelData.type === "file" && modelData.isDir)
-                        text: ">"
+                    Swatches {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: resultRow.kind === "palette"
+                        colors: resultRow.kind === "palette" ? resultRow.modelData.swatches : []
+                    }
+
+                    Icon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: (resultRow.kind === "layout" && root.currentLayout === resultRow.modelData.id) ||
+                                 (resultRow.kind === "palette" && Theme.name === resultRow.modelData.id)
+                        name: "check"
+                        size: 16
+                        color: Theme.accent
+                    }
+
+                    Icon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: resultRow.kind === "menu" || (resultRow.kind === "file" && resultRow.modelData.isDir)
+                        name: "chevronRight"
+                        size: 16
                         color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 1
                     }
-
-                    // Emoji character
-                    Text {
-                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                        visible: modelData.type === "emoji"
-                        text: modelData.type === "emoji" ? modelData.e : ""
-                        font.pixelSize: sf + 8
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    // Math copy hint
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        visible: modelData.type === "math"
-                        text: "copy"
-                        color: Theme.subtext
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 3
-                    }
-
-                    // Web open hint
-                    Text {
-                        anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
-                        visible: modelData.type === "web"
-                        text: "open"
-                        color: Theme.yellow
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf - 3
-                    }
-
-                    // Active indicator for designs, layouts, palettes
-                    Text {
-                        anchors { right: parent.right; rightMargin: modelData.type === "design" || modelData.type === "layout" ? 80 : 20; verticalCenter: parent.verticalCenter }
-                        visible: (modelData.type === "design" && Theme.design === modelData.id) ||
-                                 (modelData.type === "layout" && root.currentLayout === modelData.id) ||
-                                 (modelData.type === "palette" && Theme.name === modelData.id)
-                        text: "*"
-                        color: Theme.green
-                        font.family: "JetBrains Mono"
-                        font.pixelSize: sf
-                    }
-
-                    // Design bar preview
-                    Row {
-                        id: designPrevRow
-                        anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        spacing: 4
-                        visible: modelData.type === "design"
-                        property int itemIndex: index
-
-                        Repeater {
-                            model: designPrevRow.visible ? modelData.bars : 0
-                            Rectangle {
-                                width: modelData.bars === 1 ? 60 : modelData.bars === 5 ? 10 : 18
-                                height: modelData.barH
-                                radius: modelData.bars === 3 ? 4 : modelData.bars === 5 ? modelData.barH / 2 : 2
-                                color: root.selectedSearchIndex === designPrevRow.itemIndex ? Theme.blue : Theme.subtext
-                                opacity: root.selectedSearchIndex === designPrevRow.itemIndex ? 0.7 : 0.35
-                            }
-                        }
-                    }
-
                 }
+            }
+        }
+    }
+
+    // Small schematic of a tiling layout.
+    component LayoutGlyph: Rectangle {
+        property string layoutId: ""
+        width: 34; height: 26
+        radius: 4
+        color: Theme.hover
+
+        readonly property color tile: Theme.alpha(Theme.text, 0.35)
+
+        Row {
+            visible: parent.layoutId === "dwindle"
+            anchors.centerIn: parent; spacing: 2
+            Rectangle { width: 13; height: 20; radius: 2; color: parent.parent.tile }
+            Column {
+                spacing: 2
+                Rectangle { width: 13; height: 9; radius: 2; color: parent.parent.parent.tile }
+                Row {
+                    spacing: 2
+                    Rectangle { width: 5.5; height: 9; radius: 1.5; color: parent.parent.parent.parent.tile }
+                    Rectangle { width: 5.5; height: 9; radius: 1.5; color: parent.parent.parent.parent.tile }
+                }
+            }
+        }
+        Row {
+            visible: parent.layoutId === "master"
+            anchors.centerIn: parent; spacing: 2
+            Rectangle { width: 16; height: 20; radius: 2; color: parent.parent.tile }
+            Column {
+                spacing: 2
+                Rectangle { width: 10; height: 9; radius: 2; color: parent.parent.parent.tile }
+                Rectangle { width: 10; height: 9; radius: 2; color: parent.parent.parent.tile }
+            }
+        }
+        Row {
+            visible: parent.layoutId === "scrolling"
+            anchors.centerIn: parent; spacing: 2
+            Repeater {
+                model: 3
+                Rectangle { width: 8; height: 20; radius: 2; color: Theme.alpha(Theme.text, 0.35) }
+            }
+        }
+        Rectangle {
+            visible: parent.layoutId === "monocle"
+            anchors.centerIn: parent
+            width: 28; height: 20; radius: 2; color: parent.tile
+        }
+    }
+
+    // Row of palette color dots.
+    component Swatches: Row {
+        property var colors: []
+        spacing: 3
+        Repeater {
+            model: parent.colors
+            delegate: Rectangle {
+                required property var modelData
+                width: 10; height: 10; radius: 5
+                color: modelData
             }
         }
     }

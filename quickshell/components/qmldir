@@ -1,0 +1,9 @@
+Label 1.0 Label.qml
+Icon 1.0 Icon.qml
+Meter 1.0 Meter.qml
+Toggle 1.0 Toggle.qml
+PageHeader 1.0 PageHeader.qml
+ListRow 1.0 ListRow.qml
+SectionLabel 1.0 SectionLabel.qml
+EmptyState 1.0 EmptyState.qml
+Slider 1.0 Slider.qml

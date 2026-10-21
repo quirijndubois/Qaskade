@@ -6,7 +6,7 @@ hl.config({
 		border_size = 1,
 
 		col = {
-			active_border = { colors = { "rgba(888888cc)", "rgba(aaaaaa88)" }, angle = 45 },
+			active_border = "rgba(88888899)",
 			inactive_border = "rgba(33333300)",
 		},
 

@@ -3,23 +3,14 @@ import QtQuick.Controls
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import "../"
+import "../components"
 
-Item {
+// Volume glyph. Scroll to change volume, right-click for pavucontrol.
+BarText {
     id: root
 
-    // ── BarText-compatible interface ──────────────────────────────
-    property string moduleId: "audio"
-    property Component modulePopup: popup
-    property real popupHeight: computePopupH()
-    property var screen: null
-
-    implicitWidth: innerRow.implicitWidth + (Theme.design === "pills" ? 20 : 0)
-    implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : innerRow.implicitHeight
-
-    onPopupHeightChanged: {
-        if (BarHover.activeModule === moduleId)
-            BarHover.popupH = popupHeight
-    }
+    moduleId: "audio"
+    modulePopup: popup
 
     // ── Sink data ─────────────────────────────────────────────────
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
@@ -27,6 +18,15 @@ Item {
     property var sink: Pipewire.defaultAudioSink
     property var appStreams: []
     property bool streamUpdatePending: false
+
+    readonly property bool isMuted: !!(sink && sink.audio && sink.audio.muted)
+    readonly property real volLevel: sink && sink.audio ? sink.audio.volume : 0
+
+    icon: isMuted || volLevel === 0 ? "volumeMute"
+        : volLevel < 0.33 ? "volumeLow"
+        : volLevel < 0.66 ? "volumeMedium"
+        : "volumeHigh"
+    iconColor: isMuted ? Theme.subtext : Theme.text
 
     Item {
         width: 0; height: 0
@@ -65,138 +65,19 @@ Item {
         appStreams = streams
     }
 
-    function computePopupH() {
-        return appStreams.length > 0 ? 277 : 117
-    }
-
-    // ── Live peak for bar widget ──────────────────────────────────
-    PwNodePeakMonitor {
-        id: barPeakMon
-        node: root.sink
-        enabled: root.sink !== null
-    }
-
-    property real barPeakLevel: {
-        const p = barPeakMon.peaks
-        if (!p || p.length === 0) return 0
-        let m = 0
-        for (let i = 0; i < p.length; i++) if (p[i] > m) m = p[i]
-        if (m < 1e-5) return 0
-        const db = 20 * Math.log10(Math.min(1.0, m))
-        return Math.max(0, Math.min(1, (db + 6) / 6))
-    }
-
-    property bool   isMuted: sink && sink.audio && sink.audio.muted
-    property real   volLevel: sink && sink.audio ? sink.audio.volume : 0
-    property color  accent: Theme.yellow
-
-    property string volIcon: {
-        if (!sink || !sink.audio || sink.audio.muted) return String.fromCodePoint(0xF075F)
-        const v = sink.audio.volume
-        if (v < 0.33) return String.fromCodePoint(0xF057F)
-        if (v < 0.66) return String.fromCodePoint(0xF0580)
-        return String.fromCodePoint(0xF057E)
-    }
-
-    // ── Visual layers ─────────────────────────────────────────────
-    Rectangle {
-        id: pillsBg
-        visible: Theme.design === "pills"
-        anchors.centerIn: parent
-        width: innerRow.implicitWidth + 20
-        height: root.implicitHeight
-        radius: height / 2
-        color: Theme.surface
-        border.color: Theme.border
-        border.width: 1
-    }
-
-    Row {
-        id: innerRow
-        anchors.centerIn: parent
-        spacing: 6
-
-        // Speaker icon + bars as one combined visual unit
-        Item {
-            id: speakerUnit
-            height: Theme.barFontSize
-            width: iconLabel.implicitWidth + 3 + eqBars.width
-            anchors.verticalCenter: parent.verticalCenter
-
-            Text {
-                id: iconLabel
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                text: root.volIcon
-                color: root.isMuted ? Theme.subtext : root.accent
-                font.family: "Symbols Nerd Font Mono"
-                font.pixelSize: Theme.barFontSize
-            }
-
-            // Bars grow from vertical center of icon — look like sound wave arcs
-            Item {
-                id: eqBars
-                anchors { left: iconLabel.right; leftMargin: 3; verticalCenter: parent.verticalCenter }
-                width: 10   // 3 bars × 2px + 2 gaps × 2px + last bar = 10
-                height: Theme.barHeight - 6
-
-                Repeater {
-                    model: [
-                        { frac: 0.38, dur: 80  },
-                        { frac: 0.65, dur: 170 },
-                        { frac: 1.00, dur: 300 }
-                    ]
-                    Item {
-                        required property var modelData
-                        required property int index
-
-                        x: index * 4
-                        width: 2
-                        height: parent.height
-
-                        Rectangle {
-                            property real level: root.isMuted ? 0 : Math.min(1.0, root.barPeakLevel * root.volLevel) * modelData.frac
-                            anchors { verticalCenter: parent.verticalCenter; horizontalCenter: parent.horizontalCenter }
-                            width: 2
-                            height: Math.max(2, parent.height * level)
-                            radius: 1
-                            color: root.barPeakLevel > 0.9 && !root.isMuted ? Theme.red : (root.isMuted ? Theme.subtext : root.accent)
-                            Behavior on height { NumberAnimation { duration: modelData.dur; easing.type: Easing.OutCubic } }
-                        }
-                    }
-                }
-            }
-        }
-
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: {
-                if (!root.sink || !root.sink.audio) return "--%"
-                if (root.sink.audio.muted) return "mute"
-                return Math.round(root.sink.audio.volume * 100) + "%"
-            }
-            color: root.isMuted ? Theme.subtext : root.accent
-            font.family: Theme.barFontFamily
-            font.pixelSize: Theme.barFontSize
-            font.bold: Theme.barFontBold
-            renderType: Text.NativeRendering
-        }
+    function setVolume(v) {
+        if (sink && sink.audio) sink.audio.volume = Math.max(0, Math.min(1.5, v))
     }
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onClicked: pavuProc.running = true
-    }
-
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                BarHover.show(root.moduleId, root.modulePopup,
-                              root.mapToItem(null, root.width / 2, 0).x,
-                              root.popupHeight, root.screen)
-            else
-                BarHover.startHide()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        cursorShape: Qt.PointingHandCursor
+        onClicked: mouse => {
+            if (mouse.button === Qt.RightButton) pavuProc.running = true
+            else if (root.sink && root.sink.audio) root.sink.audio.muted = !root.sink.audio.muted
         }
+        onWheel: wheel => root.setVolume(root.volLevel + (wheel.angleDelta.y > 0 ? 0.05 : -0.05))
     }
 
     Process {
@@ -208,135 +89,55 @@ Item {
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: 10
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            PwNodePeakMonitor {
-                id: sinkPeakMon
-                node: root.sink
-                enabled: BarHover.activeModule === "audio"
-            }
-
-            property real sinkPeakLevel: {
-                const p = sinkPeakMon.peaks
-                if (!p || p.length === 0) return 0
-                let m = 0
-                for (let i = 0; i < p.length; i++) if (p[i] > m) m = p[i]
-                if (m < 1e-5) return 0
-                const db = 20 * Math.log10(Math.min(1.0, m))
-                return Math.max(0, Math.min(1, (db + 6) / 6))
+            PopupHeader {
+                title: "Sound"
+                subtitle: root.sink ? (root.sink.description || root.sink.name || "") : "No output"
+                detail: root.isMuted ? "Muted" : Math.round(root.volLevel * 100) + "%"
+                detailColor: root.isMuted ? Theme.subtext : root.volLevel > 1.0 ? Theme.red : Theme.text
             }
 
             Row {
-                spacing: 8
-
-                Text {
-                    text: {
-                        if (!root.sink || !root.sink.audio) return "--%"
-                        return root.sink.audio.muted ? "muted" : Math.round(root.sink.audio.volume * 100) + "%"
-                    }
-                    color: (root.sink && root.sink.audio && root.sink.audio.muted) ? Theme.subtext : Theme.yellow
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-
-                Text {
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 3
-                    text: (root.sink && root.sink.audio && root.sink.audio.muted) ? "click to unmute" : "click to mute"
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 10
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: { if (root.sink && root.sink.audio) root.sink.audio.muted = !root.sink.audio.muted }
-                    }
-                }
-            }
-
-            // Master volume slider
-            Item {
                 width: parent.width
-                height: 16
+                spacing: 10
 
-                Rectangle {
-                    id: sliderTrack
-                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                    height: 5
-                    radius: 2
-                    color: Theme.border
-
-                    Rectangle {
-                        width: parent.width * Math.min(1, (root.sink && root.sink.audio ? root.sink.audio.volume / 1.5 : 0))
-                        height: parent.height
-                        radius: parent.radius
-                        color: (root.sink && root.sink.audio && root.sink.audio.volume > 1.0) ? Theme.red : Theme.yellow
-                    }
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: root.icon
+                    size: 16
+                    color: muteHover.hovered ? Theme.text : Theme.subtext
+                    HoverHandler { id: muteHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: { if (root.sink && root.sink.audio) root.sink.audio.muted = !root.sink.audio.muted } }
                 }
 
-                Rectangle {
-                    x: sliderTrack.width * Math.min(1, (root.sink && root.sink.audio ? root.sink.audio.volume / 1.5 : 0)) - width / 2
-                    anchors.verticalCenter: sliderTrack.verticalCenter
-                    width: 12; height: 12; radius: 6
-                    color: Theme.yellow
-                    border.color: Theme.base; border.width: 2
+                // 0–150 % mapped onto the full track width.
+                Slider {
+                    width: parent.width - 26
+                    anchors.verticalCenter: parent.verticalCenter
+                    value: root.volLevel / 1.5
+                    fillColor: root.volLevel > 1.0 ? Theme.red : Theme.text
+                    onMoved: v => root.setVolume(v * 1.5)
                 }
-
-                MouseArea {
-                    anchors.fill: parent
-                    preventStealing: true
-                    cursorShape: Qt.PointingHandCursor
-                    onPressed:         mouse => setVol(mouse.x)
-                    onPositionChanged: mouse => { if (pressed) setVol(mouse.x) }
-                    function setVol(mx) {
-                        const v = Math.max(0, Math.min(1.5, (mx / sliderTrack.width) * 1.5))
-                        if (root.sink && root.sink.audio) root.sink.audio.volume = v
-                    }
-                }
-            }
-
-            Rectangle {
-                width: parent.width; height: 3; radius: 1
-                color: Theme.border
-
-                Rectangle {
-                    width: parent.width * parent.parent.sinkPeakLevel
-                    height: parent.height; radius: parent.radius
-                    color: parent.parent.sinkPeakLevel > 0.85 ? Theme.red : Theme.yellow
-                    Behavior on width { NumberAnimation { duration: 60 } }
-                }
-            }
-
-            Text {
-                text: root.sink ? (root.sink.description || root.sink.name || "") : ""
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 10
-                elide: Text.ElideRight
-                width: parent.width
             }
 
             // ── Per-app streams ────────────────────────────────────
             Rectangle {
                 visible: root.appStreams.length > 0
                 width: parent.width; height: 1
-                color: Theme.border; opacity: 0.5
+                color: Theme.hairline
             }
 
-            Text {
+            SectionLabel {
                 visible: root.appStreams.length > 0
-                text: "app volumes"
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 10
+                text: "Applications"
             }
 
             Flickable {
                 visible: root.appStreams.length > 0
                 width: parent.width
-                height: Math.min(contentHeight, 130)
+                height: Math.min(contentHeight, 150)
                 contentWidth: width
                 contentHeight: streamsCol.implicitHeight
                 clip: true
@@ -346,7 +147,7 @@ Item {
                 Column {
                     id: streamsCol
                     width: parent.width
-                    spacing: 6
+                    spacing: 10
 
                     Repeater {
                         model: root.appStreams
@@ -356,94 +157,30 @@ Item {
                             width: parent.width
                             spacing: 4
 
-                            PwNodePeakMonitor {
-                                id: peakMon
-                                node: modelData
-                                enabled: BarHover.activeModule === "audio"
-                            }
-
-                            property real peakLevel: {
-                                const p = peakMon.peaks
-                                if (!p || p.length === 0) return 0
-                                let m = 0
-                                for (let i = 0; i < p.length; i++) if (p[i] > m) m = p[i]
-                                const vol = modelData.audio ? modelData.audio.volume : 1.0
-                                const v = Math.min(1.0, m * vol)
-                                if (v < 1e-5) return 0
-                                const db = 20 * Math.log10(v)
-                                return Math.max(0, Math.min(1, (db + 6) / 6))
-                            }
-
-                            // ── Name + vol% ──────────────────────────
-                            Row {
+                            Item {
                                 width: parent.width
+                                height: 16
 
-                                Text {
-                                    width: parent.width - volLabel.width
-                                    text: modelData.description || modelData.name || "?"
-                                    color: Theme.text
-                                    font.family: Theme.barFontFamily
-                                    font.pixelSize: 10
+                                Label {
+                                    anchors { left: parent.left; right: volLabel.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                                    text: (modelData.properties && modelData.properties["application.name"]) || modelData.description || modelData.name || "Unknown"
+                                    font.pixelSize: Theme.textSm
                                     elide: Text.ElideRight
                                 }
 
-                                Text {
+                                Label {
                                     id: volLabel
-                                    text: modelData.audio ? Math.round(modelData.audio.volume * 100) + "%" : "--%"
-                                    color: Theme.yellow
-                                    font.family: Theme.barFontFamily
-                                    font.pixelSize: 10
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    text: modelData.audio ? Math.round(modelData.audio.volume * 100) + "%" : "—"
+                                    color: Theme.subtext
+                                    font.pixelSize: Theme.textSm
                                 }
                             }
 
-                            // ── Peak level bar ───────────────────────
-                            Rectangle {
-                                width: parent.width; height: 3; radius: 1
-                                color: Theme.border
-
-                                Rectangle {
-                                    width: parent.width * peakLevel
-                                    height: parent.height; radius: parent.radius
-                                    color: peakLevel > 0.85 ? Theme.red : Theme.teal
-                                    Behavior on width { NumberAnimation { duration: 60 } }
-                                }
-                            }
-
-                            // ── Volume slider ────────────────────────
-                            Item {
-                                width: parent.width; height: 14
-
-                                Rectangle {
-                                    id: streamTrack
-                                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-                                    height: 4; radius: 2; color: Theme.border
-
-                                    Rectangle {
-                                        width: parent.width * Math.min(1, modelData.audio ? modelData.audio.volume : 0)
-                                        height: parent.height; radius: parent.radius
-                                        color: Theme.yellow
-                                    }
-                                }
-
-                                Rectangle {
-                                    x: streamTrack.width * Math.min(1, modelData.audio ? modelData.audio.volume : 0) - width / 2
-                                    anchors.verticalCenter: streamTrack.verticalCenter
-                                    width: 10; height: 10; radius: 5
-                                    color: Theme.yellow
-                                    border.color: Theme.base; border.width: 2
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    preventStealing: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onPressed:         mouse => setStreamVol(mouse.x)
-                                    onPositionChanged: mouse => { if (pressed) setStreamVol(mouse.x) }
-                                    function setStreamVol(mx) {
-                                        const v = Math.max(0, Math.min(1.0, mx / streamTrack.width))
-                                        if (modelData.audio) modelData.audio.volume = v
-                                    }
-                                }
+                            Slider {
+                                width: parent.width
+                                value: modelData.audio ? Math.min(1, modelData.audio.volume) : 0
+                                onMoved: v => { if (modelData.audio) modelData.audio.volume = v }
                             }
                         }
                     }

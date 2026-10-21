@@ -5,7 +5,7 @@ title: Settings Overlay
 
 # Settings Overlay
 
-The settings overlay is Qaskade's central control panel - a floating window with fuzzy search across all configuration options.
+The settings overlay is Qaskade's central control panel - a panel that grows out of the bar's center notch, with fuzzy search across all configuration options.
 
 ---
 
@@ -13,7 +13,7 @@ The settings overlay is Qaskade's central control panel - a floating window with
 
 ### Opening
 
-`Alt + S` toggles the overlay. The window is also reachable from the `menu` label on the left of the bar.
+`Alt + S` toggles the overlay. The window is also reachable from the menu button (a 2×2 dot grid) if you enable it in **Bar layout**. Rows can be clicked as well as navigated with the keyboard.
 
 ### Navigation
 
@@ -25,7 +25,7 @@ The settings overlay is Qaskade's central control panel - a floating window with
 
 #### Vim Binds
 
-Enable **vim binds** under Settings → System → navigation to switch to a modal navigation style:
+Enable **Vim keys** under Settings → System → Keyboard to switch to a modal navigation style:
 
 - `h` / `l` - go back / activate item (same as Left / Right)
 - `j` / `k` - move selection down / up
@@ -39,19 +39,18 @@ The setting is persisted to `~/.config/quickshell/vim-binds`.
 | Page | Access | Contents |
 |---|---|---|
 | Main | Default | Menu of all sections, fuzzy-searchable |
-| Appearance | Main → appearance | Palettes, bar designs, lock screen, module toggles, font size |
-| Wallpaper | Main → wallpaper | Browse `~/wallpapers/`, press `A` to extract palette |
-| Palette | Appearance → palette | 18 color themes |
-| Design | Appearance → design | 8 bar designs |
-| Lock Screen | Appearance → lock screen | 5 lock designs |
-| Monitor Layout | Main → monitor layout | Enable/disable monitors, resolution, scale, position, workspace assignment |
-| System | Main → system | **monitors** - per-monitor scale, enable/disable, layout; **input** - mouse sensitivity, natural scroll, scroll factor; **window** - layout, blur; **navigation** - vim binds |
+| Appearance | Main → Appearance | Color palette, bar layout, wallpaper tags |
+| Color palette | Appearance → Color palette | 17 built-in palettes plus the one extracted from your wallpaper |
+| Bar layout | Appearance → Bar layout | Place each bar module left, center or right, or turn it off |
+| Wallpaper tags | Appearance → Wallpaper tags | Category size, tag hints, Ollama models, retagging, thumbnails |
+| Arrangement | System → Arrangement | Monitor positions and workspace assignment |
+| System | Main → System | **Displays** - per-monitor scale, enable/disable, arrangement, bar text size; **Input** - pointer speed, natural scrolling, scroll speed; **Windows** - tiling layout, blur; **Keyboard** - Vim keys |
 | Bluetooth | Main → bluetooth | Pair, connect, disconnect devices |
 | WiFi | Main → wifi | Scan, connect, disconnect, and forget networks |
 | Clipboard | Main → clipboard | Browse and re-copy clipboard history entries |
 | Apps | Main → apps | Browse and launch `.desktop` applications |
 | Notifications | Main → notifications | Full notification history with dismiss |
-| Layout | System → layout | Switch between dwindle, master, scrolling, monocle |
+| Tiling layout | System → Tiling layout | Switch between dwindle, master, scrolling, monocle |
 
 ### Special Search Behaviors
 
@@ -67,9 +66,9 @@ The setting is persisted to `~/.config/quickshell/vim-binds`.
 
 ### Window and Focus
 
-`SettingsWindow` is a `FloatingWindow` (Quickshell type). It uses `HyprlandFocusGrab` to steal keyboard focus from other windows while open. A 80ms timer delays focus grab activation after the window appears to avoid input race conditions.
+`SettingsWindow` is a plain `Item`, not a window. `shell.qml` creates one instance and, when it opens, records the focused monitor as `hostMonitor`. A `Binding` reparents the item into that monitor's center notch, which grows to 560×480 around it (see [Bar → Expanding notch](bar.html)).
 
-When opened from a specific monitor (e.g. via `Alt + S` on monitor 2), `moveMonitorProc` runs `hyprctl dispatch movewindow` to reposition the window to the correct monitor.
+While a panel is open, the bar's `PanelWindow` takes exclusive keyboard focus (`WlrLayershell.keyboardFocus`), and a `HyprlandFocusGrab` closes it when you click anywhere outside. An 80ms timer delays the grab to avoid input race conditions.
 
 ### Page System
 

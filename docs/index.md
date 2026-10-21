@@ -40,10 +40,10 @@ Every file in the repo that gets synced to `~/.config/`:
 
 The Quickshell-based shell, each documented with a user guide and internal implementation details:
 
-- [Bar](bar.html) - the status bar, hover popup system, bar designs, multi-monitor
+- [Bar](bar.html) - the status bar, notch layout, hover popup system, multi-monitor
 - [Bar Modules](bar-modules.html) - CPU, memory, GPU, audio, music, battery, clock, Bluetooth, network, workspaces, tray
 - [Notifications](notifications.html) - D-Bus notification server, in-bar display, history
-- [Lock Screen](lock-screen.html) - Wayland session lock, 5 designs, animations, authentication
+- [Lock Screen](lock-screen.html) - Wayland session lock, blurred backdrop, animations, authentication
 - [Settings Overlay](settings-overlay.html) - fuzzy search, all pages, filesystem browser, math evaluator
 - [IPC & Shell Root](ipc.html) - how keybinds and scripts communicate with the running shell
 
@@ -51,7 +51,7 @@ The Quickshell-based shell, each documented with a user guide and internal imple
 
 ## Theming
 
-- [Theme Engine](theme-engine.html) - animated palette switching, system-wide sync, bar design system
+- [Theme Engine](theme-engine.html) - animated palette switching, system-wide sync, design tokens
 - [Palette Extraction](palette-extraction.html) - extracting colors from wallpapers, WCAG enforcement, jitter
 - [Palettes](themes.html) - all 18 built-in color themes
 

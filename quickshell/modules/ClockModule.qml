@@ -1,13 +1,13 @@
 import QtQuick
 import "../"
+import "../components"
 
 BarText {
     id: root
 
-    property string timeStr: Qt.formatTime(new Date(), "hh:mm")
-    property string dateStr: Qt.formatDate(new Date(), "dddd, MMMM d")
+    property date now: new Date()
 
-    text: timeStr
+    text: Qt.formatTime(now, "hh:mm")
     moduleId: "clock"
     modulePopup: popup
 
@@ -15,32 +15,75 @@ BarText {
         interval: 1000
         running: true
         repeat: true
-        onTriggered: {
-            root.timeStr = Qt.formatTime(new Date(), "hh:mm")
-            root.dateStr = Qt.formatDate(new Date(), "dddd, MMMM d")
-        }
+        onTriggered: root.now = new Date()
     }
 
     Component {
         id: popup
-        Column {
-            anchors.centerIn: parent
-            spacing: 4
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.timeStr
-                color: Theme.blue
-                font.family: Theme.barFontFamily
-                font.pixelSize: 22
-                font.bold: true
+        Column {
+            id: cal
+            width: parent ? parent.width : 0
+            spacing: 14
+
+            readonly property int year: root.now.getFullYear()
+            readonly property int month: root.now.getMonth()
+            // Monday-first offset of the 1st of the month.
+            readonly property int lead: (new Date(year, month, 1).getDay() + 6) % 7
+            readonly property int days: new Date(year, month + 1, 0).getDate()
+
+            PopupHeader {
+                title: Qt.formatDate(root.now, "dddd")
+                subtitle: Qt.formatDate(root.now, "d MMMM yyyy")
+                detail: Qt.formatTime(root.now, "hh:mm")
             }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.dateStr
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 12
+
+            Grid {
+                id: grid
+                columns: 7
+                width: parent.width
+                readonly property real cell: width / 7
+
+                Repeater {
+                    model: ["M", "T", "W", "T", "F", "S", "S"]
+                    Label {
+                        required property string modelData
+                        width: grid.cell
+                        height: 22
+                        horizontalAlignment: Text.AlignHCenter
+                        text: modelData
+                        color: Theme.subtext
+                        font.pixelSize: Theme.textXs
+                        font.weight: Font.DemiBold
+                    }
+                }
+
+                Repeater {
+                    model: cal.lead + cal.days
+                    Item {
+                        required property int index
+                        readonly property int day: index - cal.lead + 1
+                        readonly property bool today: day === root.now.getDate()
+                        width: grid.cell
+                        height: 28
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 26; height: 26; radius: 13
+                            visible: parent.today
+                            color: Theme.accent
+                        }
+
+                        Label {
+                            anchors.centerIn: parent
+                            visible: parent.day > 0
+                            text: parent.day
+                            color: parent.today ? Theme.base : Theme.text
+                            font.pixelSize: Theme.textSm
+                            font.weight: parent.today ? Font.DemiBold : Font.Normal
+                        }
+                    }
+                }
             }
         }
     }

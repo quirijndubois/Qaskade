@@ -1,12 +1,3 @@
-hl.window_rule({
-	name = "qs-settings",
-	match = { class = "org.quickshell", title = "Quickshell Settings" },
-	float = true,
-	pin = true,
-	move = "center center",
-	border_size = 0,
-})
-
 -- Ignore client maximize requests (kitty opens maximized since Hyprland 0.56)
 hl.window_rule({ name = "suppress-maximize-events", match = { class = ".*" }, suppress_event = "maximize" })
 

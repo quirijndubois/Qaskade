@@ -2,16 +2,17 @@ import QtQuick
 import QtQuick.Window
 import Quickshell.Wayland._IdleInhibitor
 import "../"
+import "../components"
 
+// Coffee cup that keeps the screen awake while active.
 BarText {
     id: root
 
-    text: "☾"
-    color: InhibitState.inhibited ? Theme.yellow : Theme.subtext
+    icon: "coffee"
+    iconColor: InhibitState.inhibited ? Theme.accent : Theme.subtext
 
     moduleId: "inhibit"
     modulePopup: popup
-    popupHeight: 80
 
     IdleInhibitor {
         enabled: InhibitState.inhibited
@@ -27,22 +28,17 @@ BarText {
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: 8
+            width: parent ? parent.width : 0
 
-            Text {
-                text: InhibitState.inhibited ? "active" : "inactive"
-                color: InhibitState.inhibited ? Theme.yellow : Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 20
-                font.bold: true
-            }
+            PopupHeader {
+                title: "Keep awake"
+                subtitle: InhibitState.inhibited ? "Screen won't sleep" : "Normal sleep behaviour"
 
-            Text {
-                text: InhibitState.inhibited ? "sleep inhibited" : "sleep allowed"
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 11
+                Toggle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    checked: InhibitState.inhibited
+                    onToggled: InhibitState.inhibited = !InhibitState.inhibited
+                }
             }
         }
     }

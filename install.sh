@@ -32,6 +32,10 @@ sync_all() {
   for dir in hypr kitty quickshell; do
     if sync_dir "$dir"; then
       changed=1
+      # Hyprland only watches hyprland.lua, not the conf/*.lua files it dofile()s
+      if [ "$dir" = "hypr" ] && [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
+        hyprctl reload >/dev/null && echo "Hyprland reloaded!"
+      fi
     fi
   done
 
@@ -46,7 +50,7 @@ sync_all
 # Create default main-items order if it doesn't exist yet
 quickshell_config="$CONFIG_DIR/quickshell"
 if [ ! -f "$quickshell_config/main-items" ]; then
-  printf 'wallpaper palette design layout apps bluetooth clipboard bar notifications system\n' > "$quickshell_config/main-items"
+  printf 'appearance apps bluetooth wifi clipboard notifications emoji system power\n' > "$quickshell_config/main-items"
   echo "main-items has been created!"
 fi
 

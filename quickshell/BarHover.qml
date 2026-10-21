@@ -2,21 +2,20 @@ pragma Singleton
 import Quickshell
 import QtQuick
 
+// Shared state for the hover popup that hangs below the bar.
 Singleton {
     id: root
 
     property string activeModule: ""
     property Component popupComponent: null
     property real anchorX: 0
-    property real popupH: 104
     property var activeScreen: null
 
-    function show(moduleId, comp, x, h, screen) {
+    function show(moduleId, comp, x, screen) {
         hideTimer.stop()
         activeModule = moduleId
         popupComponent = comp
         anchorX = x
-        popupH = (h > 0) ? h : 104
         activeScreen = screen
     }
 

@@ -1,21 +1,21 @@
 import QtQuick
 import Quickshell.Io
 import "../"
+import "../components"
 
 BarText {
     id: root
-    color: Theme.blue
-
     property int cpuUsage: 0
     property var prevStat: null
     property var coreStat: []
     property var coreUsage: []
     property var topProcs: []
 
-    text: "cpu " + cpuUsage + "%"
+    caption: "CPU"
+    text: cpuUsage + "%"
+    color: cpuUsage > 80 ? Theme.red : Theme.text
     moduleId: "cpu"
     modulePopup: popup
-    popupHeight: 220
 
     Process {
         id: statProc
@@ -98,29 +98,28 @@ BarText {
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: 6
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            Text {
-                text: root.cpuUsage + "%"
-                color: Theme.blue
-                font.family: Theme.barFontFamily
-                font.pixelSize: 20
-                font.bold: true
+            PopupHeader {
+                title: "Processor"
+                subtitle: root.coreUsage.length + " threads"
+                detail: root.cpuUsage + "%"
             }
 
-            UsageBar {
+            Meter {
                 width: parent.width
                 value: root.cpuUsage
-                fillColor: Theme.blue
+                warnAt: 50
+                critAt: 80
             }
 
             Item {
                 id: coreRow
                 width: parent.width
-                height: 14
+                height: 24
                 property real barW: root.coreUsage.length > 0
-                    ? Math.floor((width - root.coreUsage.length + 1) / root.coreUsage.length)
+                    ? (width - (root.coreUsage.length - 1) * 2) / root.coreUsage.length
                     : width
 
                 Repeater {
@@ -128,16 +127,16 @@ BarText {
                     Rectangle {
                         required property var modelData
                         required property int index
-                        x: index * (coreRow.barW + 1)
+                        x: index * (coreRow.barW + 2)
                         width: coreRow.barW
                         height: coreRow.height
-                        color: Theme.border
-                        radius: 1
+                        color: Theme.track
+                        radius: 2
                         Rectangle {
                             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
                             height: Math.max(2, parent.height * modelData / 100)
-                            color: modelData > 80 ? Theme.red : modelData > 50 ? Theme.yellow : Theme.blue
-                            radius: 1
+                            color: modelData > 80 ? Theme.red : modelData > 50 ? Theme.yellow : Theme.text
+                            radius: 2
                             Behavior on height { NumberAnimation { duration: 300 } }
                         }
                     }
@@ -147,7 +146,6 @@ BarText {
             ProcessList {
                 width: parent.width
                 processes: root.topProcs
-                accentColor: Theme.blue
             }
         }
     }

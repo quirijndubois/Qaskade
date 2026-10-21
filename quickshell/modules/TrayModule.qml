@@ -8,24 +8,13 @@ Item {
     property string targetRow: "right"
     visible: trayRepeater.count > 0 && Theme.showTray === targetRow
 
-    implicitWidth: innerRow.implicitWidth + (Theme.design === "pills" ? 20 : 0)
-    implicitHeight: Theme.design === "pills" ? Theme.barHeight - 8 : innerRow.implicitHeight
-
-    Rectangle {
-        visible: Theme.design === "pills"
-        anchors.centerIn: parent
-        width: innerRow.implicitWidth + 20
-        height: root.implicitHeight
-        radius: height / 2
-        color: Theme.surface
-        border.color: Theme.border
-        border.width: 1
-    }
+    implicitWidth: innerRow.implicitWidth
+    implicitHeight: Theme.barHeight
 
     Row {
         id: innerRow
-        anchors.centerIn: parent
-        spacing: 8
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 10
 
         Repeater {
             id: trayRepeater
@@ -35,6 +24,14 @@ Item {
                 required property var modelData
                 width: 16
                 height: 16
+
+                Rectangle {
+                    anchors { fill: parent; margins: -4 }
+                    radius: Theme.radiusSm
+                    color: trayHover.hovered ? Theme.hover : "transparent"
+                }
+
+                HoverHandler { id: trayHover }
 
                 Image {
                     id: trayIcon
@@ -120,6 +117,7 @@ Item {
 
                 MouseArea {
                     anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     onClicked: mouse => {
                         if (mouse.button === Qt.RightButton && modelData.hasMenu) {

@@ -55,12 +55,14 @@ rsync -a --itemize-changes \
 
 `--itemize-changes` gives per-file output in the format `>f...` for changed files and `<f...` for received files. The script filters this with `awk '/^[><]f/ { print $2 }'` to extract just the filenames and prints them.
 
+If anything under `hypr/` changed and Hyprland is running (`$HYPRLAND_INSTANCE_SIGNATURE` is set), the script runs `hyprctl reload`. Hyprland's auto-reload only watches `hyprland.lua` itself, so edits to the `conf/*.lua` files it `dofile`s would otherwise not take effect until the next login.
+
 ### main-items Bootstrap
 
 On first install, if `~/.config/quickshell/main-items` doesn't exist, the script creates it with the default menu order:
 
 ```sh
-printf 'wallpaper palette design layout apps bluetooth clipboard bar notifications system\n' \
+printf 'appearance apps bluetooth wifi clipboard notifications emoji system power\n' \
     > "$quickshell_config/main-items"
 ```
 

@@ -2,20 +2,17 @@ import QtQuick
 import Quickshell.Io
 import Quickshell.Bluetooth
 import "../"
+import "../components"
 
 BarText {
     id: root
-    color: Theme.teal
 
     property bool btEnabled: Bluetooth.defaultAdapter ? Bluetooth.defaultAdapter.enabled : false
     property int connectedCount: 0
     property var connectedNames: []
 
-    text: {
-        if (!btEnabled) return "bt off"
-        if (connectedCount > 0) return "bt " + connectedCount
-        return "bt on"
-    }
+    icon: !btEnabled ? "bluetoothOff" : connectedCount > 0 ? "bluetoothConnected" : "bluetooth"
+    iconColor: btEnabled ? Theme.text : Theme.subtext
 
     moduleId: "bluetooth"
     modulePopup: popup
@@ -54,6 +51,7 @@ BarText {
 
     MouseArea {
         anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
         onClicked: bluemanProc.running = true
     }
 
@@ -65,61 +63,47 @@ BarText {
     Component {
         id: popup
         Column {
-            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
-            spacing: 8
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            Row {
-                spacing: 10
+            PopupHeader {
+                title: "Bluetooth"
+                subtitle: !root.btEnabled ? "Off"
+                        : root.connectedCount === 0 ? "No devices connected"
+                        : root.connectedCount + (root.connectedCount === 1 ? " device connected" : " devices connected")
 
-                Text {
-                    text: root.btEnabled ? "on" : "off"
-                    color: root.btEnabled ? Theme.teal : Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 20
-                    font.bold: true
-                }
-
-                Text {
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 3
-                    text: root.btEnabled ? "turn off" : "turn on"
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 10
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (Bluetooth.defaultAdapter)
-                                Bluetooth.defaultAdapter.enabled = !root.btEnabled
-                        }
+                Toggle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    checked: root.btEnabled
+                    onToggled: {
+                        if (Bluetooth.defaultAdapter)
+                            Bluetooth.defaultAdapter.enabled = !root.btEnabled
                     }
                 }
             }
 
             Column {
-                spacing: 3
+                visible: root.connectedNames.length > 0
                 width: parent.width
+                spacing: 8
 
                 Repeater {
-                    model: root.connectedNames.slice(0, 3)
-                    Text {
+                    model: root.connectedNames.slice(0, 4)
+                    Row {
                         required property var modelData
-                        text: "· " + modelData
-                        color: Theme.subtext
-                        font.family: Theme.barFontFamily
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
-                        width: parent.width
+                        spacing: 10
+                        Icon {
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "bluetoothConnected"
+                            size: 14
+                            color: Theme.accent
+                        }
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData
+                            font.pixelSize: Theme.textSm
+                        }
                     }
-                }
-
-                Text {
-                    visible: root.connectedCount === 0 && root.btEnabled
-                    text: "no devices connected"
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 11
                 }
             }
         }

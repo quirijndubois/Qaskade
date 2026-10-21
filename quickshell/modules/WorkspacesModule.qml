@@ -2,144 +2,109 @@ import QtQuick
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
 import "../"
+import "../components"
 
+// Workspace dots: the focused workspace stretches into a pill.
+// Hovering shows the notification history.
 Item {
     id: root
-    implicitWidth: row.implicitWidth + 8
-    implicitHeight: row.implicitHeight
+
     property var screen: null
     property var monitor: null
-    property int highlightX: -24
+
+    readonly property int dot: 6
+
+    implicitWidth: row.implicitWidth
+    implicitHeight: Theme.barHeight
 
     Row {
         id: row
-        x: 4
-        spacing: 4
-        leftPadding: 0
-        rightPadding: 0
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 5
 
         Repeater {
-            id: rep
             model: Hyprland.workspaces
 
             delegate: Item {
+                id: ws
                 required property var modelData
-                required property int index
-                width: 24
-                height: Theme.barFontSize + 8
 
-                visible: !root.monitor || modelData.monitor === root.monitor
+                // Hide special workspaces and those that live on another monitor.
+                visible: modelData.id > 0 && (!root.monitor || modelData.monitor === root.monitor)
+                width: pill.width
+                height: Theme.barHeight
 
-                property bool isFocused: modelData.focused
-
-                function updateHighlightPosition() {
-                    if (!visible) return
-                    root.highlightX = row.x + x
+                Rectangle {
+                    id: pill
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: ws.modelData.focused ? root.dot * 3 : root.dot
+                    height: root.dot
+                    radius: height / 2
+                    color: ws.modelData.focused ? Theme.accent
+                         : hover.hovered ? Theme.text
+                         : Theme.alpha(Theme.text, 0.35)
+                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
 
-                onXChanged:        { if (isFocused && visible) updateHighlightPosition() }
-                onVisibleChanged:  { if (visible && isFocused) updateHighlightPosition() }
-                onIsFocusedChanged: {
-                    if (isFocused && visible) {
-                        Qt.callLater(() => updateHighlightPosition())
-                    }
-                }
-
-                Component.onCompleted: {
-                    if (modelData.focused && visible) {
-                        Qt.callLater(() => updateHighlightPosition())
-                    }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: modelData.name
-                    color: modelData.focused ? Theme.text : Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.bold: modelData.focused || Theme.barFontBold
-                    font.pixelSize: Theme.barFontSize
-                }
+                HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
 
                 MouseArea {
-                    anchors.fill: parent
-                    onClicked: modelData.activate()
-                    cursorShape: Qt.PointingHandCursor
+                    anchors { fill: parent; leftMargin: -2; rightMargin: -2 }
+                    onClicked: ws.modelData.activate()
                 }
             }
-        }
-    }
-
-    Rectangle {
-        id: highlight
-        width: 24
-        height: Theme.barFontSize + 8
-        y: 0
-        radius: 3
-        color: Theme.blue
-        opacity: 0.35
-        x: root.highlightX
-
-        Behavior on x {
-            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
         }
     }
 
     HoverHandler {
         onHoveredChanged: {
-            if (hovered) {
-                const count = Math.min(Notifications.history.length, 5)
-                const h = count === 0 ? 64 : 44 + count * 50 + 22
-                BarHover.show("workspaces", notifPopup, root.mapToItem(null, root.width / 2, 0).x, h, root.screen)
-            } else {
+            if (hovered)
+                BarHover.show("workspaces", notifPopup, root.mapToItem(null, root.width / 2, 0).x, root.screen)
+            else
                 BarHover.startHide()
-            }
         }
     }
 
     Component {
         id: notifPopup
+
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            spacing: 6
+            width: parent ? parent.width : 0
+            spacing: 12
 
-            Item {
-                width: parent.width
-                height: 16
+            PopupHeader {
+                title: "Notifications"
+                subtitle: Notifications.history.length === 0 ? "You're all caught up"
+                        : Notifications.history.length + (Notifications.history.length === 1 ? " notification" : " notifications")
 
-                Text {
-                    anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                    text: "notifications"
-                    color: Theme.purple
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 12
-                    font.bold: true
+                Label {
+                    visible: Notifications.history.length > 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Clear"
+                    color: clearHover.hovered ? Theme.text : Theme.subtext
+                    font.pixelSize: Theme.textSm
+                    font.weight: Font.Medium
+
+                    HoverHandler { id: clearHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler {
+                        onTapped: {
+                            const count = popupNotifRep.count
+                            for (let i = 0; i < count; i++) {
+                                const item = popupNotifRep.itemAt(i)
+                                if (item && item.visible) item.animateOut((count - 1 - i) * 50)
+                            }
+                            popupClearTimer.interval = count * 50 + 220
+                            popupClearTimer.restart()
+                        }
+                    }
                 }
-
-                Text {
-                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                    text: Notifications.history.length > 0
-                        ? Notifications.history.length + " total" : ""
-                    color: Theme.subtext
-                    font.family: Theme.barFontFamily
-                    font.pixelSize: 10
-                }
-            }
-
-            Rectangle { width: parent.width; height: 1; color: Theme.border; opacity: 0.5 }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                visible: Notifications.history.length === 0
-                text: "no notifications"
-                color: Theme.subtext
-                font.family: Theme.barFontFamily
-                font.pixelSize: 11
             }
 
             Column {
                 visible: Notifications.history.length > 0
                 width: parent.width
-                spacing: 4
+                spacing: 6
 
                 Repeater {
                     id: popupNotifRep
@@ -150,11 +115,12 @@ Item {
                         required property var modelData
                         required property int index
 
+                        // Newest five, newest first is handled by the list order.
                         visible: index >= Notifications.history.length - 5
                         width: parent.width
-                        height: notifItemCol.implicitHeight + 12
-                        radius: 4
-                        color: Theme.base
+                        height: notifItemCol.implicitHeight + 20
+                        radius: Theme.radiusMd
+                        color: Theme.hover
 
                         property bool _isClearAll: false
 
@@ -185,83 +151,60 @@ Item {
                             ScriptAction { script: { if (!popupNotifItem._isClearAll) Notifications.dismiss(popupNotifItem.modelData.id) } }
                         }
 
-                        Rectangle {
-                            anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                            width: 2; radius: 1
-                            color: modelData.urgency === NotificationUrgency.Critical ? Theme.red
-                                 : modelData.urgency === NotificationUrgency.Low      ? Theme.subtext
-                                 : Theme.blue
-                        }
-
                         Column {
                             id: notifItemCol
                             anchors {
-                                left: parent.left; leftMargin: 8
-                                right: popupDismiss.left; rightMargin: 4
-                                top: parent.top; topMargin: 6
+                                left: parent.left; leftMargin: 12
+                                right: popupDismiss.left; rightMargin: 8
+                                verticalCenter: parent.verticalCenter
                             }
                             spacing: 2
 
-                            Text {
-                                width: parent.width
-                                text: modelData.appName || ""
-                                color: modelData.urgency === NotificationUrgency.Critical ? Theme.red
-                                     : modelData.urgency === NotificationUrgency.Low      ? Theme.subtext
-                                     : Theme.blue
-                                font.family: Theme.barFontFamily
-                                font.pixelSize: 9
-                                elide: Text.ElideRight
+                            Row {
+                                spacing: 6
+                                Rectangle {
+                                    visible: modelData.urgency === NotificationUrgency.Critical
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 6; height: 6; radius: 3
+                                    color: Theme.red
+                                }
+                                Label {
+                                    text: modelData.appName || "Notification"
+                                    color: Theme.subtext
+                                    font.pixelSize: Theme.textXs
+                                    font.weight: Font.Medium
+                                }
                             }
 
-                            Text {
+                            Label {
                                 width: parent.width
                                 visible: text !== ""
                                 text: modelData.summary || ""
-                                color: Theme.text
-                                font.family: Theme.barFontFamily
-                                font.pixelSize: 11
-                                font.bold: true
+                                font.pixelSize: Theme.textSm
+                                font.weight: Font.DemiBold
                                 elide: Text.ElideRight
                             }
-                        }
 
-                        Text {
-                            id: popupDismiss
-                            anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
-                            text: "×"
-                            color: Theme.subtext
-                            font.family: Theme.barFontFamily
-                            font.pixelSize: 12
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: popupNotifItem.dismiss()
+                            Label {
+                                width: parent.width
+                                visible: text !== ""
+                                text: modelData.body || ""
+                                color: Theme.subtext
+                                font.pixelSize: Theme.textSm
+                                elide: Text.ElideRight
+                                textFormat: Text.PlainText
                             }
                         }
-                    }
-                }
-            }
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                visible: Notifications.history.length > 0
-                text: "clear all"
-                color: Theme.red
-                font.family: Theme.barFontFamily
-                font.pixelSize: 10
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        const count = popupNotifRep.count
-                        for (let i = 0; i < count; i++) {
-                            const item = popupNotifRep.itemAt(i)
-                            if (item && item.visible) item.animateOut((count - 1 - i) * 50)
+                        Icon {
+                            id: popupDismiss
+                            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            name: "close"
+                            size: 14
+                            color: dismissHover.hovered ? Theme.text : Theme.subtext
+                            HoverHandler { id: dismissHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: popupNotifItem.dismiss() }
                         }
-                        Qt.callLater(() => {
-                            popupClearTimer.interval = count * 50 + 220
-                            popupClearTimer.restart()
-                        })
                     }
                 }
             }

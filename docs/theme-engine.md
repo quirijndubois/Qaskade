@@ -24,14 +24,24 @@ Open **Settings → Appearance** and select any palette. The transition animates
 ### System Sync
 
 Every palette change automatically updates:
-- **Kitty** - via `update-kitty-colors.sh` over Unix sockets
-- **Firefox** - via pywalfox (if installed)
-- **GTK** - writes `~/.config/gtk-3.0/settings.ini` and `gtk-4.0/settings.ini` with `gtk-application-prefer-dark-theme`
-- **Qt/Dolphin** - writes a qt6ct color scheme via `kwriteconfig6`
 
-### Bar Designs
+| Target | How | Running apps |
+|---|---|---|
+| **Kitty** | `update-kitty-colors.sh` over remote-control sockets | Live |
+| **Firefox** | pywalfox (if installed) | Live |
+| **Hyprland borders** | `hyprctl eval` | Live |
+| **GTK 3** | Generated theme `Qaskade-A` / `Qaskade-B` built on adw-gtk3 | Live - each sync switches to the other name, which makes GTK 3 reload |
+| **GTK 4 / libadwaita** | `~/.config/gtk-4.0/gtk.css` + gsettings `color-scheme` and `accent-color` | Light/dark and accent live; full palette for apps started afterwards (libadwaita only reads custom colors at startup) |
+| **Qt / KDE apps** | `kdeglobals` color groups + Breeze style, then a `KGlobalSettings` D-Bus notification | Live (needs `QT_QPA_PLATFORMTHEME=kde`, set in `hypr/conf/env.lua`) |
+| **Electron, Chromium, portals** | gsettings `color-scheme` | Light/dark live |
 
-The theme also controls the bar's visual style. `Theme.design` is read by `shell.qml` to determine layout, background colors, and radius.
+GTK and Qt are handled by `quickshell/scripts/sync-system-colors.py`, which `Theme.qml` runs (debounced by 150ms) with the 11 palette colors.
+
+Apps started through D-Bus or systemd (Dolphin opened from another app, portals, …) don't inherit Hyprland's environment, so `hypr/conf/autostart.lua` exports `QT_QPA_PLATFORMTHEME` with `dbus-update-activation-environment`. As a fallback, the qt6ct palette is kept in sync too: an app that still starts with `qt6ct` opens with the right colors, but won't update live.
+
+### One Visual Language
+
+There is a single bar design. Everything in the shell (bar, popups, settings, OSD, lock screen) draws from the same design tokens in `Theme.qml`, so a palette change restyles all of it at once.
 
 ---
 
@@ -100,16 +110,17 @@ Process {
 }
 ```
 
-### Design and Layout
+### Design Tokens
 
-`Theme.design` drives visual changes in `shell.qml`:
-- Bar background color (`transparent` for islands/pills, `Theme.base` otherwise)
-- Island `Rectangle` visibility
-- Pill background shapes
-- Separator visibility
-- `exclusiveZone` height calculations
+Alongside the palette, `Theme.qml` exposes the shared design tokens:
 
-`applyDesign(d)` sets `barHeightPadding`, `barFontFamily`, `barFontBold`, and `separatorText`.
+- **Fonts** - `fontFamily` is the first installed of Inter, SF Pro Text, Geist, Noto Sans or Cantarell (falling back to `sans-serif`); `monoFamily` (JetBrains Mono) is used only for clipboard entries, file paths and IP addresses; `iconFamily` is Symbols Nerd Font Mono
+- **Type scale** - `textXs` 11 … `textXl` 24 px
+- **Radii** - `radiusSm` 6, `radiusMd` 10, `radiusLg` 16
+- **Overlays** - `hairline`, `hover`, `selected` and `track` are the text color at low alpha, so they work on dark and light palettes
+- **Icons** - `Theme.icons` maps names like `bluetooth` or `volumeHigh` to Nerd Font glyphs; use them through `components/Icon.qml`
+
+Reusable building blocks live in `quickshell/components/` (`Label`, `Icon`, `ListRow`, `PageHeader`, `Toggle`, `Slider`, `Meter`, …).
 
 ### Kitty Color Sync
 
