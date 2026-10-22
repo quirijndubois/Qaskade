@@ -513,7 +513,7 @@ Item {
 
                     // The bar clock grows into the big clock as the sheet expands,
                     // and shrinks back into it on unlock.
-                    Label {
+                    RollingText {
                         id: bigClock
                         readonly property var fromRect: surface.animated && surface.notch.clock ? surface.notch.clock : null
                         readonly property real startScale: Theme.barFontSize / font.pixelSize

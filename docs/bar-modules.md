@@ -49,17 +49,17 @@ where `dIdle = idle + iowait` and `dTotal` is sum of all fields. Previous snapsh
 
 ## Clock (`ClockModule.qml`)
 
-**User:** Shows `HH:MM`. Hover to see the date and a calendar of the current month with today highlighted.
+**User:** Shows `HH:MM`. When a digit changes it rolls over like an odometer. Hover to see the date and a calendar of the current month with today highlighted.
 
-**Internals:** A 1s `Timer` updates a `now` date; the bar and popup format it with `Qt.formatTime` / `Qt.formatDate`. The month grid is computed in QML (Monday first). No system calls - all in-process.
+**Internals:** A 1s `Timer` updates a `now` date; the bar and popup format it with `Qt.formatTime` / `Qt.formatDate`. The time is drawn by `components/RollingText.qml` (also used by the popup header and the lock-screen clock): one clipped slot per character, and when a character changes the old glyph slides up and fades while the new one rises in with a slight `OutBack` overshoot, staggered right-to-left by 70 ms. The month grid is computed in QML (Monday first). No system calls - all in-process.
 
 ---
 
 ## Audio (`AudioModule.qml`)
 
-**User:** A speaker glyph that reflects the volume level, followed by three small bars that bounce with live output level (red when clipping). Scroll to change volume, click to mute, right-click to open `pavucontrol`. Hover for a master volume slider (up to 150%) and per-app volume sliders, each with a live level meter.
+**User:** A speaker whose sound-wave arcs show the volume (one to three arcs lit) and pulse with the live output: louder sound lights the arcs from the inside out and nudges them outward, and the outer arc turns red when clipping. Muted, the arcs fade and a cross appears. Scroll to change volume, click to mute, right-click to open `pavucontrol`. Hover for a master volume slider (up to 150%), the output and input device pickers, and per-app volume sliders, each with a live level meter. Click a picker to expand the list of devices and click one to switch to it.
 
-**Internals:** Uses Quickshell's PipeWire binding. `Pipewire.defaultAudioSink` is kept alive with `PwObjectTracker`. Per-app streams are collected by watching `Pipewire.nodes` for `PwNodeType.AudioOutStream`. Node changes are debounced with `Qt.callLater` to batch rapid updates into a single refresh. Live levels come from `PwNodePeakMonitor`: the loudest channel peak is mapped from -6..0 dBFS onto 0..1 (`peakToLevel`). The bar meter scales that by the sink volume, and each bar gets a different height fraction and decay time. The sink monitor pauses while muted, and the per-stream monitors only run while the popup is open.
+**Internals:** Uses Quickshell's PipeWire binding. `Pipewire.defaultAudioSink` is kept alive with `PwObjectTracker`. Per-app streams are collected by watching `Pipewire.nodes` for `PwNodeType.AudioOutStream`. The same pass collects hardware devices (nodes with `audio` that are not streams), split by `isSink` into outputs and inputs. Picking one sets `Pipewire.preferredDefaultAudioSink` / `preferredDefaultAudioSource`. Only one picker is open at a time (`openPicker`), and it closes when the popup does. Node changes are debounced with `Qt.callLater` to batch rapid updates into a single refresh. Live levels come from `PwNodePeakMonitor`: the loudest channel peak is mapped from -6..0 dBFS onto 0..1 (`peakToLevel`). The bar speaker is drawn with `QtQuick.Shapes` (a cone plus three `PathAngleArc`s). The level is scaled by the sink volume and spread over the arcs (`level * 3 - index`), and each arc's opacity and small outward offset follow its share, with a longer decay on the outer arcs. The sink monitor pauses while muted, and the per-stream monitors only run while the popup is open.
 
 The master volume slider allows dragging to 150% (red fill above 100%). The popup height follows its content.
 
@@ -67,9 +67,9 @@ The master volume slider allows dragging to 150% (red fill above 100%). The popu
 
 ## Music / MPRIS (`MusicModule.qml`)
 
-**User:** Shows 5 animated bars while music plays, short dim bars when paused, hidden when stopped. Hover for album art, track title, artist, a seekable progress bar and transport controls.
+**User:** Shows 5 animated bars while music plays, short dim bars when paused, hidden when stopped. Hover for a card with the album art on the left and the title, artist, album and player name, a seekable progress line and transport controls on the right. The card background is tinted with a blurred copy of the cover.
 
-**Internals:** Uses `Quickshell.Services.Mpris`. Player selection prefers a playing player, falls back to any player. A 50ms `Timer` drives 5 amplitude values using offset sine waves:
+**Internals:** Uses `Quickshell.Services.Mpris`. The popup sets `popupWidth: 372`, which the hover card in `shell.qml` uses instead of its default 300px width. The cover is clipped by a `ClippingRectangle`, and the background is a `MultiEffect` blur of the cover at 35% opacity, clipped to the card's rounded shape by another `ClippingRectangle`. The blurred image is oversized by 48px on each side so its fading edges fall outside the clip. Player selection prefers a playing player, falls back to any player. A 50ms `Timer` drives 5 amplitude values using offset sine waves:
 
 ```js
 amps[i] = base_i + range_i * Math.abs(Math.sin(phase * freq_i + offset_i))
@@ -123,9 +123,9 @@ When `enabled` is true, the compositor is notified via the protocol and suppress
 
 ## System Tray (`TrayModule.qml`)
 
-**User:** Shows 16×16 icons for any `StatusNotifierItem` application. Left-click activates the item, right-click opens its context menu.
+**User:** Shows 16×16 icons for any `StatusNotifierItem` application. The tray is always the rightmost module in its notch. Left-click activates the item (items that can't be activated open their menu instead, e.g. Steam and many Electron apps), middle-click runs its secondary action, right-click opens its menu below the bar, and scrolling is passed to the item. Hover to see the item's tooltip. Items that need attention get a pulsing accent dot.
 
-**Internals:** Uses Quickshell's `SystemTray.items` model. The tricky part is icon resolution - Qt's `image://icon/` provider is unreliable for tray icons, so `TrayModule` implements a manual fallback chain:
+**Internals:** Uses Quickshell's `SystemTray.items` model. Some items, such as Steam's Ayatana indicator, have no `Activate` method and don't set `ItemIsMenu` either, and Quickshell can't tell them apart. So whenever the item set changes, `scripts/tray-no-activate.sh` lists the registered items over D-Bus (`busctl`), introspects each one, and prints the Ids that lack `Activate`. Left click opens the menu for those, the same fallback KDE uses. The tricky part is icon resolution - Qt's `image://icon/` provider is unreliable for tray icons, so `TrayModule` implements a manual fallback chain:
 
 1. Absolute path (`/...`) → `file://` URL
 2. `file://` URL → used directly

@@ -8,6 +8,7 @@ BarText {
     property date now: new Date()
 
     text: Qt.formatTime(now, "hh:mm")
+    rolling: true
     moduleId: "clock"
     modulePopup: popup
 
@@ -35,7 +36,13 @@ BarText {
             PopupHeader {
                 title: Qt.formatDate(root.now, "dddd")
                 subtitle: Qt.formatDate(root.now, "d MMMM yyyy")
-                detail: Qt.formatTime(root.now, "hh:mm")
+
+                RollingText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Qt.formatTime(root.now, "hh:mm")
+                    font.pixelSize: Theme.textMd
+                    font.weight: Font.Medium
+                }
             }
 
             Grid {

@@ -521,21 +521,33 @@ ShellRoot {
                     // Height follows the content of whichever loader is in front.
                     property real targetH: open && currentItem ? currentItem.implicitHeight + pad * 2 : 0
                     property real animH: 0
+                    // A popup that animates its own height sets `resizing`;
+                    // the card then tracks it frame by frame instead of easing after it.
                     Behavior on animH {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                        enabled: !(popupCard.currentItem && popupCard.currentItem.resizing)
+                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                     }
                     onTargetHChanged: animH = targetH
+
+                    // A popup can ask for a wider card with a `popupWidth` property
+                    readonly property real targetW: currentItem && currentItem.popupWidth ? currentItem.popupWidth : 300
 
                     y: barStrip.y + Theme.barHeight + 8
                     // X: only animate when popup is already open (animH > 40)
                     // so first appearance snaps into position rather than sliding in.
-                    x: Math.max(Theme.gapsOut, Math.min(parent.width - width - Theme.gapsOut, BarHover.anchorX - width / 2))
+                    // Placed by the final width, not the animating one, so x and
+                    // width ease together as one motion instead of x chasing width.
+                    x: Math.max(Theme.gapsOut, Math.min(parent.width - targetW - Theme.gapsOut, BarHover.anchorX - targetW / 2))
                     Behavior on x {
                         enabled: popupCard.animH > 40
                         NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
                     }
 
-                    width: 300
+                    width: targetW
+                    Behavior on width {
+                        enabled: popupCard.animH > 40
+                        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                    }
                     height: animH
                     visible: animH > 0.5
                     opacity: open ? 1 : 0
@@ -570,7 +582,6 @@ ShellRoot {
                             const shouldSlide = hasHistory && wasVisible
                             const goRight     = !hasHistory || BarHover.anchorX >= popupCard.prevAnchorX
                             popupCard.prevAnchorX = BarHover.anchorX
-                            const w = popupCard.width
                             const m = popupCard.pad
 
                             const incoming = popupCard.activeLoader === 0 ? loaderB : loaderA
@@ -579,6 +590,10 @@ ShellRoot {
                             const outSlide = popupCard.activeLoader === 0 ? loaderAslide : loaderBslide
 
                             incoming.sourceComponent = BarHover.popupComponent
+                            // Slide by the wider of the old and new card, so the
+                            // outgoing content clears the card whichever way it resizes.
+                            const newW = incoming.item && incoming.item.popupWidth ? incoming.item.popupWidth : 300
+                            const w = Math.max(popupCard.width, newW)
                             if (shouldSlide) {
                                 inSlide.from = goRight ? w : -w
                                 inSlide.to = m; inSlide.restart()
@@ -603,6 +618,8 @@ ShellRoot {
 
                     Loader {
                         id: loaderA
+                        // Shown while in front or sliding out
+                        visible: popupCard.activeLoader === 0 || loaderAslide.running
                         x: parent.width; y: popupCard.pad
                         width: parent.width - popupCard.pad * 2
                         NumberAnimation on x {
@@ -613,6 +630,7 @@ ShellRoot {
 
                     Loader {
                         id: loaderB
+                        visible: popupCard.activeLoader === 1 || loaderBslide.running
                         x: parent.width; y: popupCard.pad
                         width: parent.width - popupCard.pad * 2
                         NumberAnimation on x {

@@ -1,5 +1,7 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell.Services.Mpris
+import Quickshell.Widgets
 import "../"
 import "../components"
 
@@ -137,141 +139,236 @@ Item {
     }
 
     // ── Popup ─────────────────────────────────────────────────────
+    // Cover art on the left; title, artist, album and player, a thin
+    // progress line and the transport controls on the right. The card is
+    // washed with a blurred copy of the cover.
     Component {
         id: popup
 
-        Column {
+        Item {
+            id: card
+            readonly property int popupWidth: 372
+            readonly property string artUrl: root.player ? (root.player.trackArtUrl || "") : ""
+            readonly property real progress: root.player && root.player.length > 0
+                                             ? Math.min(1, root.displayPos / root.player.length) : 0
+
             width: parent ? parent.width : 0
-            spacing: 14
+            implicitHeight: info.implicitHeight
 
-            Row {
-                width: parent.width
-                spacing: 12
+            // ── Cover wash ─────────────────────────────────────────
+            // Extends under the card's padding, inset 1px inside its border,
+            // and is clipped to the card's rounded shape. The blurred image is
+            // oversized so its soft, fading edges fall outside the clip.
+            ClippingRectangle {
+                id: wash
+                x: -16 + 1; y: -16 + 1
+                width: card.width + 32 - 2
+                height: card.height + 32 - 2
+                radius: Theme.radiusLg - 1
+                color: "transparent"
+                visible: coverSrc.status === Image.Ready
 
-                Rectangle {
-                    id: art
-                    width: 56; height: 56
-                    radius: Theme.radiusMd
-                    color: Theme.hover
-                    clip: true
-
-                    Image {
-                        anchors.fill: parent
-                        source: root.player ? (root.player.trackArtUrl || "") : ""
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        smooth: true
-                        visible: status === Image.Ready
-                    }
+                Image {
+                    id: coverSrc
+                    anchors { fill: parent; margins: -48 }
+                    source: card.artUrl
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    visible: false
                 }
 
+                MultiEffect {
+                    anchors.fill: coverSrc
+                    source: coverSrc
+                    autoPaddingEnabled: false
+                    blurEnabled: true
+                    blur: 1.0
+                    blurMax: 64
+                    saturation: 0.2
+                    opacity: 0.35
+                }
+            }
+
+            // ── Cover ──────────────────────────────────────────────
+            ClippingRectangle {
+                id: art
+                width: info.implicitHeight
+                height: width
+                radius: Theme.radiusMd
+                color: Theme.selected
+
+                Icon {
+                    anchors.centerIn: parent
+                    visible: cover.status !== Image.Ready
+                    name: "music"
+                    size: 32
+                    color: Theme.subtext
+                }
+
+                Image {
+                    id: cover
+                    anchors.fill: parent
+                    source: card.artUrl
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    smooth: true
+                    visible: status === Image.Ready
+                }
+            }
+
+            // ── Info + controls ────────────────────────────────────
+            Column {
+                id: info
+                anchors { left: art.right; leftMargin: 14; right: parent.right }
+                spacing: 10
+
                 Column {
-                    width: parent.width - art.width - parent.spacing
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 3
+                    width: parent.width
+                    spacing: 1
 
                     Label {
                         width: parent.width
                         text: root.player ? (root.player.trackTitle || "Unknown track") : ""
+                        font.pixelSize: Theme.textLg
                         font.weight: Font.DemiBold
                         elide: Text.ElideRight
                     }
-
                     Label {
                         width: parent.width
-                        text: root.player ? (root.player.trackArtist || root.player.identity || "") : ""
-                        color: Theme.subtext
+                        visible: text !== ""
+                        text: root.player ? (root.player.trackArtist || "") : ""
+                        color: Theme.alpha(Theme.text, 0.75)
                         font.pixelSize: Theme.textSm
                         elide: Text.ElideRight
+                    }
+                    Label {
+                        width: parent.width
                         visible: text !== ""
+                        text: root.player ? (root.player.trackAlbum || "") : ""
+                        color: Theme.subtext
+                        font.pixelSize: Theme.textXs
+                        elide: Text.ElideRight
+                    }
+                    Label {
+                        width: parent.width
+                        visible: text !== ""
+                        text: root.player ? (root.player.identity || "") : ""
+                        color: Theme.alpha(Theme.subtext, 0.7)
+                        font.pixelSize: Theme.textXs
+                        elide: Text.ElideRight
                     }
                 }
-            }
 
-            Column {
-                width: parent.width
-                spacing: 6
-
-                property real progress: {
-                    if (!root.player || root.player.length <= 0) return 0
-                    return Math.min(1, root.displayPos / root.player.length)
-                }
-
-                Slider {
+                // Progress: a thin line that thickens while hovered or dragged
+                Column {
                     width: parent.width
-                    value: parent.progress
-                    onMoved: v => {
-                        if (root.player && root.player.canSeek) {
-                            const newPos = v * root.player.length
-                            root.player.position = newPos
-                            root.displayPos = newPos
+                    spacing: 4
+                    visible: root.player && root.player.length > 0
+
+                    Item {
+                        width: parent.width
+                        height: 10
+
+                        Rectangle {
+                            id: progTrack
+                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
+                            height: seek.containsMouse || seek.pressed ? 6 : 3
+                            radius: height / 2
+                            color: Theme.alpha(Theme.text, 0.18)
+                            Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
+                            Rectangle {
+                                width: Math.max(parent.height, parent.width * card.progress)
+                                height: parent.height
+                                radius: parent.radius
+                                color: Theme.text
+                            }
+                        }
+
+                        MouseArea {
+                            id: seek
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            preventStealing: true
+                            enabled: root.player && root.player.canSeek
+                            cursorShape: Qt.PointingHandCursor
+                            function seekTo(x) {
+                                const pos = Math.max(0, Math.min(1, x / width)) * root.player.length
+                                root.player.position = pos
+                                root.displayPos = pos
+                            }
+                            onPressed: mouse => seekTo(mouse.x)
+                            onPositionChanged: mouse => { if (pressed) seekTo(mouse.x) }
+                        }
+                    }
+
+                    Item {
+                        width: parent.width
+                        height: 12
+
+                        Label {
+                            anchors.left: parent.left
+                            text: root.fmtTime(root.displayPos)
+                            color: Theme.subtext
+                            font.pixelSize: Theme.textXs
+                        }
+                        Label {
+                            anchors.right: parent.right
+                            text: root.player ? root.fmtTime(root.player.length) : ""
+                            color: Theme.subtext
+                            font.pixelSize: Theme.textXs
                         }
                     }
                 }
 
-                Item {
-                    width: parent.width
-                    height: 14
-                    visible: root.player && root.player.length > 0
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 18
 
-                    Label {
-                        anchors.left: parent.left
-                        text: root.fmtTime(root.displayPos)
-                        color: Theme.subtext
-                        font.pixelSize: Theme.textXs
-                    }
-                    Label {
-                        anchors.right: parent.right
-                        text: root.player ? root.fmtTime(root.player.length) : ""
-                        color: Theme.subtext
-                        font.pixelSize: Theme.textXs
-                    }
-                }
-            }
+                    Repeater {
+                        model: [
+                            { icon: "previous", big: false },
+                            { icon: "play",     big: true  },
+                            { icon: "next",     big: false },
+                        ]
 
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 28
+                        Rectangle {
+                            id: btn
+                            required property var modelData
+                            readonly property bool enabledNow: !root.player ? false
+                                : modelData.icon === "previous" ? root.player.canGoPrevious
+                                : modelData.icon === "next"     ? root.player.canGoNext
+                                : root.player.canTogglePlaying
 
-                Icon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: "previous"
-                    size: 22
-                    color: root.player && root.player.canGoPrevious ? Theme.text : Theme.track
-                    TapHandler {
-                        enabled: root.player && root.player.canGoPrevious
-                        onTapped: root.player.previous()
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                }
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: modelData.big ? 38 : 30
+                            height: width
+                            radius: width / 2
+                            color: modelData.big ? Theme.alpha(Theme.text, btnHover.hovered ? 0.2 : 0.12)
+                                                 : (btnHover.hovered ? Theme.selected : "transparent")
+                            scale: btnTap.pressed ? 0.9 : 1
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Behavior on color { ColorAnimation { duration: 120 } }
 
-                Rectangle {
-                    width: 40; height: 40; radius: 20
-                    color: Theme.text
+                            Icon {
+                                anchors.centerIn: parent
+                                name: btn.modelData.big ? (root.isPlaying ? "pause" : "play") : btn.modelData.icon
+                                size: btn.modelData.big ? 20 : 18
+                                color: btn.enabledNow ? Theme.text : Theme.track
+                            }
 
-                    Icon {
-                        anchors.centerIn: parent
-                        name: root.isPlaying ? "pause" : "play"
-                        size: 22
-                        color: Theme.base
+                            HoverHandler { id: btnHover; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                id: btnTap
+                                enabled: btn.enabledNow
+                                onTapped: {
+                                    if (btn.modelData.icon === "previous") root.player.previous()
+                                    else if (btn.modelData.icon === "next") root.player.next()
+                                    else root.player.togglePlaying()
+                                }
+                            }
+                        }
                     }
-                    TapHandler {
-                        enabled: root.player && root.player.canTogglePlaying
-                        onTapped: root.player.togglePlaying()
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                }
-
-                Icon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: "next"
-                    size: 22
-                    color: root.player && root.player.canGoNext ? Theme.text : Theme.track
-                    TapHandler {
-                        enabled: root.player && root.player.canGoNext
-                        onTapped: root.player.next()
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
             }
         }

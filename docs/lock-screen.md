@@ -20,7 +20,7 @@ Hypridle also locks automatically after 1000 seconds of inactivity (configurable
 ### Layout
 
 - Your current wallpaper, blurred and darkened toward the palette background
-- Date and a large clock near the top
+- Date and a large clock near the top, whose digits roll over when the minute changes
 - Your initial, username and a rounded password field near the bottom
 - A power button in the bottom-right corner that expands to suspend, hibernate, restart and shut down
 

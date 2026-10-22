@@ -1,11 +1,40 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.SystemTray
 import "../"
+import "../components"
 
+// StatusNotifierItem tray. Left click activates the item (or opens its menu
+// for menu-only items), middle click is the secondary action, right click
+// opens the menu, and scrolling is forwarded to the item. Hover shows the
+// item's tooltip.
 Item {
     id: root
     property string targetRow: "right"
+    property var screen: null
+
+    // Ids of items without an Activate method (Steam's Ayatana indicator, …).
+    // Quickshell can't tell, so ask D-Bus whenever the set of items changes.
+    property var noActivate: []
+
+    Process {
+        id: noActivateProc
+        command: ["sh", "-c", "$HOME/.config/quickshell/scripts/tray-no-activate.sh"]
+        stdout: StdioCollector {
+            onStreamFinished: root.noActivate = this.text.split("\n").filter(s => s !== "")
+        }
+    }
+
+    function refreshNoActivate() {
+        if (!root.visible) return
+        noActivateProc.running = false
+        noActivateProc.running = true
+    }
+
+    // Items register their D-Bus interface a moment after appearing
+    Timer { id: noActivateTimer; interval: 1500; onTriggered: root.refreshNoActivate() }
+    onVisibleChanged: noActivateTimer.restart()
     visible: trayRepeater.count > 0 && Theme.showTray === targetRow
 
     implicitWidth: innerRow.implicitWidth
@@ -14,28 +43,37 @@ Item {
     Row {
         id: innerRow
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 10
+        spacing: 4
 
         Repeater {
             id: trayRepeater
             model: SystemTray.items
+            onCountChanged: noActivateTimer.restart()
 
             delegate: Item {
+                id: trayItem
                 required property var modelData
-                width: 16
-                height: 16
+                readonly property string tipTitle: modelData.tooltipTitle || modelData.title || modelData.id || ""
+                readonly property string tipText: modelData.tooltipDescription || ""
+                readonly property bool attention: modelData.status === Status.NeedsAttention
+
+                width: 24
+                height: 24
 
                 Rectangle {
-                    anchors { fill: parent; margins: -4 }
+                    anchors.fill: parent
                     radius: Theme.radiusSm
-                    color: trayHover.hovered ? Theme.hover : "transparent"
+                    color: menuAnchor.visible ? Theme.selected : trayArea.containsMouse ? Theme.hover : "transparent"
+                    Behavior on color { ColorAnimation { duration: 90 } }
                 }
-
-                HoverHandler { id: trayHover }
 
                 Image {
                     id: trayIcon
-                    anchors.fill: parent
+                    anchors.centerIn: parent
+                    width: 16
+                    height: 16
+                    scale: trayArea.pressed ? 0.85 : 1
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     sourceSize: Qt.size(16, 16)
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
@@ -109,21 +147,96 @@ Item {
                     }
                 }
 
+                // Pulsing dot for items asking for attention
+                Rectangle {
+                    anchors { right: parent.right; top: parent.top; margins: 2 }
+                    width: 6; height: 6; radius: 3
+                    color: Theme.accent
+                    visible: trayItem.attention
+                    SequentialAnimation on opacity {
+                        running: trayItem.attention
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0;  duration: 700; easing.type: Easing.InOutSine }
+                    }
+                }
+
+                // The menu opens below the bar, centered on the icon
                 QsMenuAnchor {
                     id: menuAnchor
-                    anchor.item: parent
-                    menu: modelData.menu
+                    menu: trayItem.modelData.menu
+                    anchor.item: trayItem
+                    anchor.rect.x: 0
+                    anchor.rect.y: 0
+                    anchor.rect.width: trayItem.width
+                    anchor.rect.height: trayItem.height + (Theme.barHeight - trayItem.height) / 2 + 6
+                    anchor.edges: Edges.Bottom
+                    anchor.gravity: Edges.Bottom
+                }
+
+                function openMenu() {
+                    BarHover.startHide()
+                    if (menuAnchor.visible) menuAnchor.close()
+                    else menuAnchor.open()
                 }
 
                 MouseArea {
+                    id: trayArea
                     anchors.fill: parent
+                    hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+
+                    onContainsMouseChanged: {
+                        if (containsMouse && trayItem.tipTitle !== "" && !menuAnchor.visible)
+                            BarHover.show("tray", tooltip, trayItem.mapToItem(null, trayItem.width / 2, 0).x, root.screen)
+                        else if (!containsMouse)
+                            BarHover.startHide()
+                    }
+
                     onClicked: mouse => {
-                        if (mouse.button === Qt.RightButton && modelData.hasMenu) {
-                            menuAnchor.open()
+                        const item = trayItem.modelData
+                        if (mouse.button === Qt.MiddleButton) {
+                            item.secondaryActivate()
+                        } else if (mouse.button === Qt.RightButton) {
+                            if (item.hasMenu) trayItem.openMenu()
+                            else item.activate()
+                        } else if (item.hasMenu && (item.onlyMenu || root.noActivate.indexOf(item.id) >= 0)) {
+                            trayItem.openMenu()
                         } else {
-                            modelData.activate()
+                            item.activate()
+                        }
+                    }
+
+                    onWheel: wheel => {
+                        const horizontal = Math.abs(wheel.angleDelta.x) > Math.abs(wheel.angleDelta.y)
+                        trayItem.modelData.scroll(horizontal ? wheel.angleDelta.x : wheel.angleDelta.y, horizontal)
+                    }
+                }
+
+                Component {
+                    id: tooltip
+
+                    Column {
+                        width: parent ? parent.width : 0
+                        spacing: 4
+
+                        Label {
+                            width: parent.width
+                            text: trayItem.tipTitle
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                        }
+                        Label {
+                            width: parent.width
+                            visible: text !== ""
+                            text: trayItem.tipText
+                            textFormat: Text.StyledText
+                            color: Theme.subtext
+                            font.pixelSize: Theme.textSm
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 6
+                            elide: Text.ElideRight
                         }
                     }
                 }

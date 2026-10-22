@@ -12,6 +12,8 @@ Item {
     property string text: ""
     property color color: Theme.text
     property color iconColor: color
+    // Roll changed characters in (see RollingText) instead of swapping them
+    property bool rolling: false
 
     property string moduleId: ""
     property Component modulePopup: null
@@ -45,9 +47,18 @@ Item {
         }
 
         Label {
-            visible: root.text !== ""
+            visible: root.text !== "" && !root.rolling
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
+            color: root.color
+            font.pixelSize: Theme.barFontSize
+            font.weight: Font.Medium
+        }
+
+        RollingText {
+            visible: root.text !== "" && root.rolling
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.rolling ? root.text : ""
             color: root.color
             font.pixelSize: Theme.barFontSize
             font.weight: Font.Medium

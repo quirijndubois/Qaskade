@@ -19,7 +19,7 @@ The status bar is a Quickshell `PanelWindow` anchored to the top of each monitor
 
 Each module is assigned to the left, center or right notch, or turned off, in **Settings → Appearance → Bar layout**. A notch with no modules is not drawn. Within a notch, modules always appear in this order:
 
-Menu · Workspaces · Clock · Now playing · CPU · Memory · GPU · Keep awake · Tray · Network · Bluetooth · Sound · Battery
+Menu · Workspaces · Clock · Now playing · CPU · Memory · GPU · Keep awake · Network · Bluetooth · Sound · Battery · Tray
 
 By default everything important sits in the center notch: workspace dots, the clock, network bars, Bluetooth, sound and battery.
 

@@ -55,9 +55,6 @@ Row {
         visible: Theme.showInhibit === root.pos
         screen: root.screen
     }
-    TrayModule {
-        targetRow: root.pos
-    }
     Loader {
         active: Theme.showNetwork === root.pos
         visible: active
@@ -74,6 +71,11 @@ Row {
     BatteryModule {
         id: battery
         visible: Theme.showBattery === root.pos && battery.present
+        screen: root.screen
+    }
+    // Tray last, so its icons sit to the right of everything else in the notch
+    TrayModule {
+        targetRow: root.pos
         screen: root.screen
     }
 }

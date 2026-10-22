@@ -35,6 +35,7 @@ Because the code runs from `~/.config`, the QML and scripts reference `$HOME/.co
   - `auto-tag-wallpaper.py` tags wallpapers through a local Ollama model.
   - `gen-thumbs.sh` maintains the wallpaper thumbnail cache.
   - `list_apps.py` supplies the app launcher.
+  - `tray-no-activate.sh` lists tray items without an SNI `Activate` method, whose left click opens their menu instead.
 
 ## Hyprland config
 
