@@ -25,7 +25,7 @@ The settings overlay is Qaskade's central control panel - a panel that grows out
 
 #### Vim Binds
 
-Enable **Vim keys** under Settings → System → Keyboard to switch to a modal navigation style:
+Enable **Vim keys** under Settings → System → Shell to switch to a modal navigation style:
 
 - `h` / `l` - go back / activate item (same as Left / Right)
 - `j` / `k` - move selection down / up
@@ -43,8 +43,8 @@ The setting is persisted to `~/.config/quickshell/vim-binds`.
 | Color palette | Appearance → Color palette | 17 built-in palettes plus the one extracted from your wallpaper |
 | Bar layout | Appearance → Bar layout | Place each bar module left, center or right, or turn it off |
 | Wallpaper tags | Appearance → Wallpaper tags | Category size, tag hints, Ollama models, retagging, thumbnails |
-| Arrangement | System → Arrangement | Monitor positions and workspace assignment |
-| System | Main → System | **Displays** - per-monitor scale, enable/disable, arrangement, bar text size; **Input** - pointer speed, natural scrolling, scroll speed; **Windows** - tiling layout, blur; **Keyboard** - Vim keys |
+| Arrangement | System → Arrangement & workspaces (only with more than one monitor) | Place monitors beside each other and assign workspaces to them |
+| System | Main → System | **Displays** - per-monitor scale, enable/disable, arrangement; **Mouse** - pointer speed, natural scrolling, scroll speed; **Touchpad** (only when one is detected) - natural scrolling, scroll speed; **Windows** - tiling layout, blur; **Shell** - bar text size, Vim keys |
 | Bluetooth | Main → bluetooth | Pair, connect, disconnect devices |
 | WiFi | Main → wifi | Scan, connect, disconnect, and forget networks |
 | Clipboard | Main → clipboard | Browse and re-copy clipboard history entries |
@@ -114,13 +114,19 @@ property bool isPathMode: searchQuery.length > 0 && (searchQuery[0] === "/" || s
 
 If no other results match, the query is evaluated with `eval()` inside a try/catch. `^` is replaced with `**` for exponentiation. If the result is a finite number, it's shown and `Enter` copies it via `wl-copy`.
 
-### Monitor Layout
+### System Settings
 
-Monitor data is fetched from `hyprctl monitors -j`. The layout page renders each monitor as a draggable rectangle positioned according to its `x`/`y` offsets, scaled to fit the view. Changes are applied live via `hyprctl keyword monitor`.
+On the System page, Left / Right (or `h` / `l`) adjust the selected slider or scale. On any other row they go back / open as usual. Enter or a click flips a switch, steps through the scale chips, or opens a sub-page.
 
-### Workspace Rules
+The current values are read from Hyprland itself: `hyprctl -j getoption` for each input, blur and layout option (the value is under a `bool`, `float`, `int` or `str` key depending on the option's type), `hyprctl -j devices` to decide whether to show the Touchpad section, `hyprctl -j monitors all` for monitors (including disabled ones) and `hyprctl -j workspacerules` for workspace assignments.
 
-Workspace-to-monitor assignments are read from `hyprctl workspacerules -j` and written back via `hyprctl keyword workspace rules`.
+Input, blur, layout and workspace changes are applied live with `hyprctl eval` (a Lua snippet such as `hl.config({ input = { sensitivity = -0.4 } })`). Monitor changes (scale, enable/disable, position) are applied with `hyprctl reload`, after which the monitor list is read back so it shows the scale Hyprland actually used.
+
+After every change the overlay regenerates `~/.config/hypr/user-settings.lua` from the live state: one `hl.monitor` line per connected monitor (mode including refresh rate), any `hl.monitor` lines for monitors that aren't connected right now (kept unchanged), the workspace rules, the tiling layout, the mouse and touchpad options and blur. The file isn't written until all of that state has been read, so a change made right after the shell starts can't fill it with defaults. Since the file is generated, manual edits to it are overwritten.
+
+### Monitor Arrangement
+
+The Arrangement page draws each monitor at its logical size (pixels ÷ scale) and position. The arrow keys place the selected monitor directly to the left of, right of, above or below the other enabled monitors (top/left aligned), and the layout is then shifted so it starts at `0x0`. There are no gaps or overlaps to fix by hand. `Tab` selects the next monitor and `0`–`9` assigns that workspace to it.
 
 ### WiFi Page
 

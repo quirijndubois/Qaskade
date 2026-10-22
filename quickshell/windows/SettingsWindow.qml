@@ -60,9 +60,19 @@ Item {
     property string wallpapersDir: homeDir ? homeDir + "/wallpapers/" : ""
     property var systemMonitors: []
     property real mouseSensitivity: 0.0
+    property bool mouseNaturalScroll: false
+    property real mouseScrollFactor: 1.0
+    property bool hasTouchpad: false
     property bool naturalScroll: true
     property real scrollFactor: 0.4
     property bool blurEnabled: true
+    // Both are needed before user-settings.lua may be rewritten, or it would
+    // be filled with defaults instead of the live values.
+    property bool _sysOptionsLoaded: false
+    property bool _sysMonitorsLoaded: false
+    property bool _sysRulesLoaded: false
+    // hl.monitor lines for outputs that aren't connected right now, kept as-is
+    property var _foreignMonitorLines: []
     property int selectedMonitorIdx: 0
     property var workspaceRules: []
     property bool vimSearchMode: false
@@ -86,40 +96,54 @@ Item {
 
     property var systemSettingItems: {
         const items = []
+        const multi = root.systemMonitors.length > 1
         items.push({ type: "section", label: "Displays" })
         for (const m of root.systemMonitors) {
-            items.push({ type: "scale", label: m.name, sub: m.width + " × " + m.height, monitor: m })
-            items.push({ type: "monitor_toggle", label: "Enabled", sub: m.name, monitor: m })
+            const mode = m.enabled
+                ? m.width + " × " + m.height + " @ " + Math.round(m.refreshRate) + " Hz"
+                : "Off"
+            items.push({ type: "scale", id: "scale:" + m.name,
+                         label: multi ? m.desc + " (" + m.name + ")" : "Display scale",
+                         sub: multi ? mode : m.desc + " · " + mode, monitor: m })
+            if (multi)
+                items.push({ type: "monitor_toggle", id: "enable:" + m.name, label: "Use " + m.name, monitor: m })
         }
-        items.push({ type: "nav", label: "Arrangement", page: "monitor_layout" })
-        items.push({ type: "font_size", label: "Bar text size" })
-        items.push({ type: "section", label: "Input" })
-        items.push({ type: "sensitivity",    label: "Pointer speed" })
-        items.push({ type: "natural_scroll", label: "Natural scrolling" })
-        items.push({ type: "scroll_factor",  label: "Scroll speed" })
+        if (multi)
+            items.push({ type: "nav", id: "arrangement", label: "Arrangement & workspaces", page: "monitor_layout" })
+        items.push({ type: "section", label: "Mouse" })
+        items.push({ type: "sensitivity",        id: "sensitivity",  label: "Pointer speed" })
+        items.push({ type: "mouse_natural",      id: "mouse_natural", label: "Natural scrolling" })
+        items.push({ type: "mouse_scroll",       id: "mouse_scroll", label: "Scroll speed" })
+        if (root.hasTouchpad) {
+            items.push({ type: "section", label: "Touchpad" })
+            items.push({ type: "natural_scroll", id: "tp_natural", label: "Natural scrolling", sub: "Touchpad" })
+            items.push({ type: "scroll_factor",  id: "tp_scroll",  label: "Scroll speed",      sub: "Touchpad" })
+        }
         items.push({ type: "section", label: "Windows" })
-        items.push({ type: "nav", label: "Tiling layout", page: "layout" })
-        items.push({ type: "blur_toggle", label: "Blur" })
-        items.push({ type: "section", label: "Keyboard" })
-        items.push({ type: "vim_binds", label: "Vim keys" })
+        const layout = root.layoutOptions.find(l => l.id === root.currentLayout)
+        items.push({ type: "nav", id: "layout", label: "Tiling layout", sub: layout ? layout.label : root.currentLayout, page: "layout" })
+        items.push({ type: "blur_toggle", id: "blur", label: "Blur", sub: "Background blur behind translucent windows" })
+        items.push({ type: "section", label: "Shell" })
+        items.push({ type: "font_size", id: "font_size", label: "Bar text size" })
+        items.push({ type: "vim_binds", id: "vim", label: "Vim keys", sub: "hjkl to navigate this menu" })
         return items
     }
 
-    property string _pendingSystemLabel: ""
+    property string _pendingSystemId: ""
 
     onSystemSettingItemsChanged: {
-        if (root.page === "system" && root._pendingSystemLabel !== "") {
-            const idx = root.systemSettingItems.findIndex(s => s.label === _pendingSystemLabel)
+        if (root.page === "system" && root._pendingSystemId !== "") {
+            const idx = root.systemSettingItems.findIndex(s => s.id === _pendingSystemId)
             if (idx >= 0) {
                 root.selectedIndex = idx
                 Qt.callLater(() => sysListView.positionViewAtIndex(idx, ListView.Contain))
             }
-            root._pendingSystemLabel = ""
+            root._pendingSystemId = ""
         }
     }
 
     onPageChanged: {
-        if (page !== "system") root._pendingSystemLabel = ""
+        if (page !== "system") root._pendingSystemId = ""
         if (page !== "main") activeSubPage = page
         if (page === "bluetooth") btListProc.running = true
         if (page === "wifi") { root.wifiScanning = true; wifiListProc.running = true }
@@ -222,8 +246,8 @@ Item {
         }
         for (const s of root.systemSettingItems) {
             if (s.type === "section") continue
-            const s2 = Math.max(root.fuzzyScore(searchQuery, s.label), s.type === "scale" ? root.fuzzyScore(searchQuery, s.monitor.name) : 0)
-            if (s2 > 0) results.push({ score: s2, type: "system_item", label: s.label, sub: s.sub || "", page: "system", index: root.systemSettingItems.indexOf(s) })
+            const s2 = Math.max(root.fuzzyScore(searchQuery, s.label), s.type === "scale" ? root.fuzzyScore(searchQuery, "scale " + s.monitor.name) : 0)
+            if (s2 > 0) results.push({ score: s2, type: "system_item", id: s.id, label: s.label, sub: s.sub || "", page: "system", index: root.systemSettingItems.indexOf(s) })
         }
         for (const b of root.barModules) {
             const s2 = Math.max(root.fuzzyScore(searchQuery, b.label), root.fuzzyScore(searchQuery, b.id))
@@ -862,12 +886,6 @@ Item {
     }
 
     Process {
-        id: layoutProc
-        stdout: StdioCollector {}
-        stderr: StdioCollector {}
-    }
-
-    Process {
         id: layoutQueryProc
         command: ["sh", "-c", "hyprctl -j getoption general:layout 2>/dev/null"]
         running: true
@@ -1007,110 +1025,104 @@ Item {
 
     Process {
         id: sysMonitorsProc
-        command: ["sh", "-c", "hyprctl -j monitors 2>/dev/null; echo '---SEP---'; cat $HOME/.config/hypr/user-settings.lua 2>/dev/null || echo ''"]
+        running: true
+        command: ["sh", "-c", "hyprctl -j monitors all 2>/dev/null; echo '---SEP---'; cat \"$HOME/.config/hypr/user-settings.lua\" 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    const parts = this.text.trim().split('---SEP---')
+                    const parts = this.text.split('---SEP---')
                     const monitors = JSON.parse(parts[0])
-                    const userSettings = parts.length > 1 ? parts[1].trim() : ''
-
-                    const disabledMonitors = new Set()
-                    const monitorConfigs = {}
-
-                    const lines = userSettings.split('\n')
-                    for (const line of lines) {
-                        if (!line.includes('hl.monitor')) continue
-
-                        const outputMatch = line.match(/output\s*=\s*"([^"]+)"/)
-                        if (!outputMatch) continue
-
-                        const name = outputMatch[1]
-                        const isDisabled = line.includes('disabled') && line.includes('true')
-                        const modeMatch = line.match(/mode\s*=\s*"([^"]+)"/)
-                        const posMatch = line.match(/position\s*=\s*"([^"]+)"/)
-                        const scaleMatch = line.match(/scale\s*=\s*([\d.]+)/)
-
-                        if (isDisabled) {
-                            disabledMonitors.add(name)
-                        }
-
-                        monitorConfigs[name] = {
-                            mode: modeMatch ? modeMatch[1] : null,
-                            position: posMatch ? posMatch[1] : null,
-                            scale: scaleMatch ? parseFloat(scaleMatch[1]) : 1.0
-                        }
-                    }
-
-                    const activeMonitors = monitors.map(m => ({
+                    root.systemMonitors = monitors.map(m => ({
                         name: m.name,
-                        desc: (m.description || m.name).split(" ")[0],
+                        desc: m.model || m.name,
                         width: m.width, height: m.height,
                         refreshRate: m.refreshRate || 60,
                         x: m.x, y: m.y,
                         scale: m.scale || 1.0,
-                        enabled: !disabledMonitors.has(m.name)
+                        enabled: !m.disabled
                     }))
-
-                    const disabledMonList = Array.from(disabledMonitors).map(name => {
-                        const config = monitorConfigs[name]
-                        const mode = config && config.mode ? config.mode.split('x') : ['1920', '1080']
-                        return {
-                            name: name,
-                            desc: name.split(" ")[0],
-                            width: parseInt(mode[0]) || 1920,
-                            height: parseInt(mode[1]) || 1080,
-                            refreshRate: 60,
-                            x: config && config.position ? parseInt(config.position.split('x')[0]) : 0,
-                            y: config && config.position ? parseInt(config.position.split('x')[1]) : 0,
-                            scale: config && config.scale ? config.scale : 1.0,
-                            enabled: false
-                        }
-                    }).filter(m => !activeMonitors.find(a => a.name === m.name))
-
-                    root.systemMonitors = activeMonitors.concat(disabledMonList)
+                    const names = new Set(monitors.map(m => m.name))
+                    root._foreignMonitorLines = (parts[1] || "").split('\n').filter(l => {
+                        const output = (l.match(/hl\.monitor\(.*output\s*=\s*"([^"]+)"/) || [])[1]
+                        return output && !names.has(output)
+                    })
+                    root._sysMonitorsLoaded = true
                 } catch(e) {}
             }
         }
     }
 
+    readonly property var _sysOptionNames: [
+        "input:sensitivity", "input:natural_scroll", "input:scroll_factor",
+        "input:touchpad:natural_scroll", "input:touchpad:scroll_factor",
+        "decoration:blur:enabled", "general:layout"
+    ]
+
     Process {
         id: sysSensProc
+        running: true
+        // One getoption result per line, then the device list on the last line
         command: ["sh", "-c",
-            "hyprctl -j getoption input:sensitivity 2>/dev/null; " +
-            "hyprctl -j getoption input:touchpad:natural_scroll 2>/dev/null; " +
-            "hyprctl -j getoption input:touchpad:scroll_factor 2>/dev/null; " +
-            "hyprctl -j getoption decoration:blur:enabled 2>/dev/null"
-        ]
+            "for o in " + root._sysOptionNames.join(" ") + "; do hyprctl -j getoption \"$o\" 2>/dev/null | tr -d '\\n'; echo; done; " +
+            "hyprctl -j devices 2>/dev/null | tr -d '\\n'"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const text = this.text.trim()
-                let depth = 0, start = 0
-                const objects = []
-                for (let i = 0; i < text.length; i++) {
-                    if (text[i] === '{') { if (depth === 0) start = i; depth++ }
-                    else if (text[i] === '}') { depth--; if (depth === 0) objects.push(text.slice(start, i + 1)) }
+                const lines = this.text.split('\n')
+                // getoption reports the value under its type: bool, float, int or str
+                function opt(name) {
+                    try {
+                        const o = JSON.parse(lines[root._sysOptionNames.indexOf(name)])
+                        for (const k of ["bool", "float", "int", "str"])
+                            if (o[k] !== undefined) return o[k]
+                    } catch(e) {}
+                    return undefined
                 }
-                try { const o = JSON.parse(objects[0]); if (o.float !== undefined) root.mouseSensitivity = Math.round(o.float * 10) / 10 } catch(e) {}
-                try { const o = JSON.parse(objects[1]); if (o.int !== undefined) root.naturalScroll = o.int === 1 } catch(e) {}
-                try { const o = JSON.parse(objects[2]); if (o.float !== undefined) root.scrollFactor = Math.round(o.float * 20) / 20 } catch(e) {}
-                try { const o = JSON.parse(objects[3]); if (o.int !== undefined) root.blurEnabled = o.int === 1 } catch(e) {}
+                const asBool = v => v === true || v === 1
+                const sens = opt("input:sensitivity")
+                if (sens !== undefined) root.mouseSensitivity = Math.round(sens * 10) / 10
+                const mNat = opt("input:natural_scroll")
+                if (mNat !== undefined) root.mouseNaturalScroll = asBool(mNat)
+                const mScroll = opt("input:scroll_factor")
+                if (mScroll !== undefined) root.mouseScrollFactor = Math.round(mScroll * 10) / 10
+                const tNat = opt("input:touchpad:natural_scroll")
+                if (tNat !== undefined) root.naturalScroll = asBool(tNat)
+                const tScroll = opt("input:touchpad:scroll_factor")
+                if (tScroll !== undefined) root.scrollFactor = Math.round(tScroll * 20) / 20
+                const blur = opt("decoration:blur:enabled")
+                if (blur !== undefined) root.blurEnabled = asBool(blur)
+                const layout = opt("general:layout")
+                if (layout) root.currentLayout = layout
+                try {
+                    const dev = JSON.parse(lines[root._sysOptionNames.length])
+                    root.hasTouchpad = (dev.mice || []).some(m => /touchpad|trackpad|synaptics|elan|glidepoint/i.test(m.name))
+                } catch(e) {}
+                root._sysOptionsLoaded = true
             }
         }
     }
 
     Process {
         id: sysApplyProc
+        property bool refreshMonitors: false
         stdout: StdioCollector {}
         stderr: StdioCollector {}
+        // Hyprland may adjust a requested scale, so re-read what it settled on
+        onExited: if (refreshMonitors) sysMonitorsRefresh.restart()
+    }
+
+    Timer {
+        id: sysMonitorsRefresh
+        interval: 600
+        onTriggered: { sysMonitorsProc.running = false; sysMonitorsProc.running = true }
     }
 
     Process {
         id: wsRulesProc
+        running: true
         command: ["sh", "-c",
             "hyprctl -j workspacerules 2>/dev/null; echo '---SEP---';" +
             "cat \"$HOME/.config/hypr/user-settings.lua\" 2>/dev/null; echo '---SEP---';" +
-            "cat \"$HOME/.config/hypr/hyprland.lua\" 2>/dev/null"]
+            "cat \"$HOME/.config/hypr/conf/monitors.lua\" 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
@@ -1140,140 +1152,194 @@ Item {
                     }
 
                     root.workspaceRules = rules.sort((a, b) => parseInt(a.workspace) - parseInt(b.workspace))
+                    root._sysRulesLoaded = true
                 } catch(e) {}
             }
         }
     }
 
+    function _shq(s) {
+        return "'" + String(s).replace(/'/g, "'\\''") + "'"
+    }
+
+    // user-settings.lua is fully generated from the live state below, so it
+    // is only written once all of that state has been read back from Hyprland.
     function _writeUserSettings() {
-        const lines = []
+        const b = v => v ? "true" : "false"
+        const lines = ["-- Written by the Qaskade settings overlay (System page). Manual edits are overwritten."]
         for (const m of root.systemMonitors) {
-            const disableStr = !m.enabled ? ', disabled = true' : ''
-            lines.push('hl.monitor({ output = "' + m.name + '", mode = "' + m.width + 'x' + m.height + '", position = "' + m.x + 'x' + m.y + '", scale = ' + m.scale + disableStr + ' })')
+            if (!m.enabled) {
+                lines.push('hl.monitor({ output = "' + m.name + '", disabled = true })')
+                continue
+            }
+            const mode = m.width > 0 ? m.width + "x" + m.height + "@" + (Math.round(m.refreshRate * 100) / 100) : "preferred"
+            const pos = m.autoPos ? "auto" : m.x + "x" + m.y
+            lines.push('hl.monitor({ output = "' + m.name + '", mode = "' + mode + '", position = "' + pos + '", scale = ' + m.scale + ' })')
         }
+        for (const l of root._foreignMonitorLines) lines.push(l)
         for (const r of root.workspaceRules)
             lines.push('hl.workspace_rule({ workspace = "' + r.workspace + '", monitor = "' + r.monitor + '" })')
-        const ns = root.naturalScroll ? 'true' : 'false'
-        lines.push('hl.config({ input = { sensitivity = ' + root.mouseSensitivity + ', touchpad = { natural_scroll = ' + ns + ', scroll_factor = ' + root.scrollFactor + ' } } })')
-        const blur = root.blurEnabled ? 'true' : 'false'
-        lines.push('hl.config({ decoration = { blur = { enabled = ' + blur + ' } } })')
-        const args = lines.map(l => "'" + l + "'").join(' ')
-        return "printf '%s\\n' " + args + " > \"$HOME/.config/hypr/user-settings.lua\""
+        lines.push('hl.config({ general = { layout = "' + root.currentLayout + '" } })')
+        lines.push('hl.config({ input = { sensitivity = ' + root.mouseSensitivity +
+                   ', natural_scroll = ' + b(root.mouseNaturalScroll) + ', scroll_factor = ' + root.mouseScrollFactor +
+                   ', touchpad = { natural_scroll = ' + b(root.naturalScroll) + ', scroll_factor = ' + root.scrollFactor + ' } } })')
+        lines.push('hl.config({ decoration = { blur = { enabled = ' + b(root.blurEnabled) + ' } } })')
+        return "printf '%s\\n' " + lines.map(root._shq).join(" ") + " > \"$HOME/.config/hypr/user-settings.lua\""
+    }
+
+    // Applies `lua` live through `hyprctl eval` and persists everything.
+    // Monitor rules only take effect on a reload, so those changes reload instead.
+    function _applySystem(lua, reload) {
+        const cmds = []
+        if (lua) cmds.push("hyprctl eval " + root._shq(lua) + " >/dev/null")
+        if (root._sysOptionsLoaded && root._sysMonitorsLoaded && root._sysRulesLoaded)
+            cmds.push(root._writeUserSettings())
+        if (reload) cmds.push("hyprctl reload >/dev/null")
+        sysApplyProc.refreshMonitors = !!reload
+        sysApplyProc.command = ["sh", "-c", cmds.join(" ; ")]
+        sysApplyProc.running = false
+        sysApplyProc.running = true
     }
 
     function setWorkspaceMonitor(ws, monitorName) {
-        const arr = Array.from(root.workspaceRules)
-        const idx = arr.findIndex(r => r.workspace === ws)
-        if (idx >= 0) arr[idx] = { workspace: ws, monitor: monitorName }
-        else arr.push({ workspace: ws, monitor: monitorName })
+        const arr = root.workspaceRules.filter(r => r.workspace !== ws)
+        arr.push({ workspace: ws, monitor: monitorName })
         arr.sort((a, b) => parseInt(a.workspace) - parseInt(b.workspace))
         root.workspaceRules = arr
-        const evalCmd = "hyprctl eval \"hl.workspace_rule({ workspace = '" + ws + "', monitor = '" + monitorName + "' })\""
-        sysApplyProc.command = ["sh", "-c", root._writeUserSettings() + " ; " + evalCmd]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
+        root._applySystem('hl.workspace_rule({ workspace = "' + ws + '", monitor = "' + monitorName + '" })', false)
     }
 
-    function _rescaleCmd() {
-        let cmd = ""
-        for (const m of root.systemMonitors) {
-            const disableStr = !m.enabled ? ', disabled = true' : ''
-            cmd += " ; hyprctl eval \"hl.monitor({ output = '" + m.name + "', mode = '" + m.width + "x" + m.height + "', position = '" + m.x + "x" + m.y + "', scale = " + m.scale + disableStr + " })\""
-        }
-        cmd += " && hyprctl reload"
-        return cmd
+    function _updateMonitor(name, changes) {
+        root.systemMonitors = root.systemMonitors.map(m => m.name === name ? Object.assign({}, m, changes) : m)
+        root._applySystem("", true)
     }
 
     function setMonitorScale(mon, scale) {
-        const idx = root.systemMonitors.findIndex(m => m.name === mon.name)
-        if (idx >= 0) {
-            const arr = Array.from(root.systemMonitors)
-            arr[idx] = Object.assign({}, arr[idx], { scale: scale })
-            root.systemMonitors = arr
-        }
-        const evalCmd = "hyprctl eval \"hl.monitor({ output = '" + mon.name + "', mode = '" + mon.width + "x" + mon.height + "', position = '" + mon.x + "x" + mon.y + "', scale = " + scale + " })\""
-        sysApplyProc.command = ["sh", "-c", root._writeUserSettings() + " ; " + evalCmd]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
+        if (Math.abs(mon.scale - scale) < 0.01) return
+        root._updateMonitor(mon.name, { scale: scale })
     }
 
     function setMonitorEnabled(mon, enabled) {
-        const enabledCount = root.systemMonitors.filter(m => m.enabled).length
-        if (!enabled && enabledCount <= 1) {
-            return
+        if (!enabled && root.systemMonitors.filter(m => m.enabled).length <= 1) return
+        // A monitor coming back on is placed by Hyprland instead of at a stale position
+        root._updateMonitor(mon.name, enabled ? { enabled: true, autoPos: true } : { enabled: false })
+    }
+
+    // Puts `mon` directly beside the other enabled monitors (top/left aligned),
+    // then shifts the whole layout so it starts at 0x0.
+    function placeMonitor(mon, side) {
+        const others = root.systemMonitors.filter(m => m.enabled && m.name !== mon.name)
+        if (!mon.enabled || others.length === 0) return
+        const w = m => Math.round(m.width / m.scale)
+        const h = m => Math.round(m.height / m.scale)
+        const minX = Math.min(...others.map(m => m.x)), minY = Math.min(...others.map(m => m.y))
+        const maxX = Math.max(...others.map(m => m.x + w(m))), maxY = Math.max(...others.map(m => m.y + h(m)))
+        const pos = side === "left"  ? { x: minX - w(mon), y: minY }
+                  : side === "right" ? { x: maxX,          y: minY }
+                  : side === "up"    ? { x: minX,          y: minY - h(mon) }
+                  :                    { x: minX,          y: maxY }
+        const moved = root.systemMonitors.map(m => m.name === mon.name ? Object.assign({}, m, pos, { autoPos: false }) : m)
+        const on = moved.filter(m => m.enabled)
+        const ox = Math.min(...on.map(m => m.x)), oy = Math.min(...on.map(m => m.y))
+        const placed = moved.map(m => m.enabled ? Object.assign({}, m, { x: m.x - ox, y: m.y - oy }) : m)
+        if (placed.every((m, i) => m.x === root.systemMonitors[i].x && m.y === root.systemMonitors[i].y)) return
+        root.systemMonitors = placed
+        root._applySystem("", true)
+    }
+
+    // Slider-style settings: bounds, step and how the value is shown
+    readonly property var sysRanges: ({
+        sensitivity:   { min: -1,  max: 1,  step: 0.1,  decimals: 1, suffix: "" },
+        mouse_scroll:  { min: 0.1, max: 3,  step: 0.1,  decimals: 1, suffix: "×" },
+        scroll_factor: { min: 0.1, max: 3,  step: 0.05, decimals: 2, suffix: "×" },
+        font_size:     { min: 8,   max: 20, step: 1,    decimals: 0, suffix: " px" },
+    })
+
+    function sysRangeValue(type) {
+        return type === "sensitivity"   ? root.mouseSensitivity
+             : type === "mouse_scroll"  ? root.mouseScrollFactor
+             : type === "scroll_factor" ? root.scrollFactor
+             : type === "font_size"     ? Theme.barFontSize
+             : 0
+    }
+
+    function setSysRange(type, raw) {
+        const r = root.sysRanges[type]
+        if (!r) return
+        const val = Math.round(Math.round(Math.max(r.min, Math.min(r.max, raw)) / r.step) * r.step * 100) / 100
+        if (Math.abs(val - root.sysRangeValue(type)) < 0.001) return
+        if (type === "sensitivity") {
+            root.mouseSensitivity = val
+            root._applySystem("hl.config({ input = { sensitivity = " + val + " } })", false)
+        } else if (type === "mouse_scroll") {
+            root.mouseScrollFactor = val
+            root._applySystem("hl.config({ input = { scroll_factor = " + val + " } })", false)
+        } else if (type === "scroll_factor") {
+            root.scrollFactor = val
+            root._applySystem("hl.config({ input = { touchpad = { scroll_factor = " + val + " } } })", false)
+        } else if (type === "font_size") {
+            Theme.barFontSize = val
         }
-        const idx = root.systemMonitors.findIndex(m => m.name === mon.name)
-        if (idx >= 0) {
-            const arr = Array.from(root.systemMonitors)
-            arr[idx] = Object.assign({}, arr[idx], { enabled: enabled })
-            root.systemMonitors = arr
+    }
+
+    readonly property var monitorScales: [1, 1.25, 1.5, 2]
+
+    function _stepScale(mon, dir, wrap) {
+        const scales = root.monitorScales
+        const ci = scales.findIndex(s => Math.abs(mon.scale - s) < 0.01)
+        let ni = (ci < 0 ? 0 : ci) + dir
+        ni = wrap ? (ni + scales.length) % scales.length : Math.max(0, Math.min(scales.length - 1, ni))
+        root.setMonitorScale(mon, scales[ni])
+    }
+
+    // Left/Right on a system row. Returns false for rows without a value to
+    // adjust, so the key keeps its usual back/forward meaning there.
+    function isSystemNav() {
+        return root.page === "system" && root.systemSettingItems[root.selectedIndex]?.type === "nav"
+    }
+
+    function adjustSystemItem(item, dir) {
+        if (!item) return false
+        if (root.sysRanges[item.type]) {
+            root.setSysRange(item.type, root.sysRangeValue(item.type) + dir * root.sysRanges[item.type].step)
+            return true
         }
-        const disableStr = enabled ? '' : ', disabled = true'
-        const evalCmd = "hyprctl eval \"hl.monitor({ output = '" + mon.name + "', mode = '" + mon.width + "x" + mon.height + "', position = '" + mon.x + "x" + mon.y + "', scale = " + mon.scale + disableStr + " })\" && hyprctl reload"
-        sysApplyProc.command = ["sh", "-c", root._writeUserSettings() + " ; " + evalCmd]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
-    }
-
-    function setMonitorPosition(mon, dx, dy) {
-        const idx = root.systemMonitors.findIndex(m => m.name === mon.name)
-        if (idx >= 0) {
-            const arr = Array.from(root.systemMonitors)
-            arr[idx] = Object.assign({}, arr[idx], { x: mon.x + dx, y: mon.y + dy })
-            root.systemMonitors = arr
+        if (item.type === "scale" && item.monitor.enabled) {
+            root._stepScale(item.monitor, dir, false)
+            return true
         }
-        const disableStr = !mon.enabled ? ', disabled = true' : ''
-        const evalCmd = "hyprctl eval \"hl.monitor({ output = '" + mon.name + "', mode = '" + mon.width + "x" + mon.height + "', position = '" + (mon.x + dx) + "x" + (mon.y + dy) + "', scale = " + mon.scale + disableStr + " })\" && hyprctl reload"
-        sysApplyProc.command = ["sh", "-c", root._writeUserSettings() + " ; " + evalCmd]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
+        return false
     }
 
-    function setMouseSensitivity(val) {
-        val = Math.round(Math.max(-1.0, Math.min(1.0, val)) * 10) / 10
-        root.mouseSensitivity = val
-        sysApplyProc.command = ["sh", "-c",
-            "hyprctl eval \"hl.config({ input = { sensitivity = " + val + " } })\" && " +
-            root._writeUserSettings() +
-            root._rescaleCmd()
-        ]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
+    function systemToggleState(item) {
+        return item.type === "mouse_natural"  ? root.mouseNaturalScroll
+             : item.type === "natural_scroll" ? root.naturalScroll
+             : item.type === "blur_toggle"    ? root.blurEnabled
+             : item.type === "vim_binds"      ? Theme.vimBinds
+             : item.type === "monitor_toggle" ? item.monitor.enabled
+             : undefined
     }
 
-    function setNaturalScroll(val) {
-        root.naturalScroll = val
-        sysApplyProc.command = ["sh", "-c",
-            "hyprctl eval \"hl.config({ input = { touchpad = { natural_scroll = " + (val ? "true" : "false") + " } } })\" && " +
-            root._writeUserSettings() +
-            root._rescaleCmd()
-        ]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
-    }
-
-    function setScrollFactor(val) {
-        val = Math.round(Math.max(0.1, Math.min(3.0, val)) * 20) / 20
-        root.scrollFactor = val
-        sysApplyProc.command = ["sh", "-c",
-            "hyprctl eval \"hl.config({ input = { touchpad = { scroll_factor = " + val + " } } })\" && " +
-            root._writeUserSettings() +
-            root._rescaleCmd()
-        ]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
-    }
-
-    function setBlur(val) {
-        root.blurEnabled = val
-        const opacity = val ? "0.6" : "1.0"
-        sysApplyProc.command = ["sh", "-c",
-            "hyprctl eval \"hl.config({ decoration = { blur = { enabled = " + (val ? "true" : "false") + " } } })\" && " +
-            root._writeUserSettings() + " ; " +
-            "for sock in /tmp/kitty-*; do [ -S \"$sock\" ] && kitten @ --to \"unix:$sock\" set-background-opacity --all " + opacity + " 2>/dev/null; done"
-        ]
-        sysApplyProc.running = false
-        sysApplyProc.running = true
+    // Enter / click on a system row that isn't a nav row
+    function toggleSystemItem(item) {
+        if (!item) return
+        const on = root.systemToggleState(item)
+        if (item.type === "mouse_natural") {
+            root.mouseNaturalScroll = !on
+            root._applySystem("hl.config({ input = { natural_scroll = " + !on + " } })", false)
+        } else if (item.type === "natural_scroll") {
+            root.naturalScroll = !on
+            root._applySystem("hl.config({ input = { touchpad = { natural_scroll = " + !on + " } } })", false)
+        } else if (item.type === "blur_toggle") {
+            root.blurEnabled = !on
+            root._applySystem("hl.config({ decoration = { blur = { enabled = " + !on + " } } })", false)
+        } else if (item.type === "vim_binds") {
+            Theme.vimBinds = !on
+        } else if (item.type === "monitor_toggle") {
+            root.setMonitorEnabled(item.monitor, !on)
+        } else if (item.type === "scale" && item.monitor.enabled) {
+            root._stepScale(item.monitor, 1, true)
+        }
     }
 
     property var clipboardItems: []
@@ -1394,12 +1460,7 @@ Item {
 
     function applyLayout(id) {
         root.currentLayout = id
-        layoutProc.command = ["sh", "-c",
-            "sed -i 's/^\\(\\s*\\)layout = \"[^\"]*\"/\\1layout = \"" + id + "\"/' " +
-            "$HOME/.config/hypr/hyprland.lua && hyprctl reload"
-        ]
-        layoutProc.running = false
-        layoutProc.running = true
+        root._applySystem('hl.config({ general = { layout = "' + id + '" } })', false)
     }
 
     Timer {
@@ -1655,7 +1716,7 @@ Item {
             if (event.key === Qt.Key_Up || (Theme.vimBinds && !inSearch && event.key === Qt.Key_K)) {
                 if (root.page === "monitor_layout") {
                     const mon = root.systemMonitors[root.selectedMonitorIdx]
-                    if (mon) root.setMonitorPosition(mon, 0, -50)
+                    if (mon) root.placeMonitor(mon, "up")
                     event.accepted = true
                     return
                 }
@@ -1717,7 +1778,7 @@ Item {
             if (event.key === Qt.Key_Down || (Theme.vimBinds && !inSearch && event.key === Qt.Key_J)) {
                 if (root.page === "monitor_layout") {
                     const mon = root.systemMonitors[root.selectedMonitorIdx]
-                    if (mon) root.setMonitorPosition(mon, 0, 50)
+                    if (mon) root.placeMonitor(mon, "down")
                     event.accepted = true
                     return
                 }
@@ -1793,8 +1854,7 @@ Item {
                 if (!inSearch) {
                     if (root.page === "monitor_layout") {
                         const mon = root.systemMonitors[root.selectedMonitorIdx]
-                        if (mon && event.key === Qt.Key_Left) root.setMonitorPosition(mon, -50, 0)
-                        else if (mon && event.key === Qt.Key_Right) root.setMonitorPosition(mon, 50, 0)
+                        if (mon) root.placeMonitor(mon, event.key === Qt.Key_Left ? "left" : "right")
                         event.accepted = true
                         return
                     } else if (root.page === "wallpapers") {
@@ -1804,27 +1864,8 @@ Item {
                         else if (root.selectedIndex === 3) root.setWpTextModel(dir)
                         event.accepted = true
                         return
-                    } else if (root.page === "system") {
-                        const item = root.systemSettingItems[root.selectedIndex]
-                        if (item && item.type !== "section" && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
-                            const dir = event.key === Qt.Key_Right ? 1 : -1
-                            if (item.type === "sensitivity") {
-                                root.setMouseSensitivity(root.mouseSensitivity + dir * 0.1)
-                            } else if (item.type === "scroll_factor") {
-                                root.setScrollFactor(root.scrollFactor + dir * 0.05)
-                            } else if (item.type === "font_size") {
-                                Theme.barFontSize = Math.max(8, Math.min(20, Theme.barFontSize + dir))
-                            } else if (item.type === "scale") {
-                                const scales = [1, 1.25, 1.5, 2]
-                                const ci = scales.findIndex(s => Math.abs(item.monitor.scale - s) < 0.01)
-                                const ni = Math.max(0, Math.min(scales.length - 1, (ci < 0 ? 0 : ci) + dir))
-                                root.setMonitorScale(item.monitor, scales[ni])
-                            } else if (item.type === "monitor_toggle") {
-                                root.setMonitorEnabled(item.monitor, !item.monitor.enabled)
-                            } else if (item.type === "blur_toggle") {
-                                root.setBlur(!root.blurEnabled)
-                            }
-                        }
+                    } else if (root.page === "system"
+                               && root.adjustSystemItem(root.systemSettingItems[root.selectedIndex], event.key === Qt.Key_Right ? 1 : -1)) {
                         event.accepted = true
                         return
                     }
@@ -1833,7 +1874,7 @@ Item {
                         event.accepted = true
                         return
                     }
-                    if (event.key === Qt.Key_Right && (root.page === "main" || root.page === "appearance")) {
+                    if (event.key === Qt.Key_Right && (root.page === "main" || root.page === "appearance" || root.isSystemNav())) {
                         activateItem()
                         event.accepted = true
                         return
@@ -1845,7 +1886,11 @@ Item {
                 if (event.key === Qt.Key_H) {
                     if (root.page === "monitor_layout") {
                         const mon = root.systemMonitors[root.selectedMonitorIdx]
-                        if (mon) root.setMonitorPosition(mon, -50, 0)
+                        if (mon) root.placeMonitor(mon, "left")
+                        event.accepted = true
+                        return
+                    }
+                    if (root.page === "system" && root.adjustSystemItem(root.systemSettingItems[root.selectedIndex], -1)) {
                         event.accepted = true
                         return
                     }
@@ -1858,11 +1903,15 @@ Item {
                 if (event.key === Qt.Key_L) {
                     if (root.page === "monitor_layout") {
                         const mon = root.systemMonitors[root.selectedMonitorIdx]
-                        if (mon) root.setMonitorPosition(mon, 50, 0)
+                        if (mon) root.placeMonitor(mon, "right")
                         event.accepted = true
                         return
                     }
-                    if (root.page === "main" || root.page === "appearance") {
+                    if (root.page === "system" && root.adjustSystemItem(root.systemSettingItems[root.selectedIndex], 1)) {
+                        event.accepted = true
+                        return
+                    }
+                    if (root.page === "main" || root.page === "appearance" || root.isSystemNav()) {
                         activateItem()
                         event.accepted = true
                         return
@@ -2011,27 +2060,8 @@ Item {
             } else if (root.page === "system") {
                 const item = root.systemSettingItems[root.selectedIndex]
                 if (!item || item.type === "section") return
-                if (item.type === "scale") {
-                    const scales = [1, 1.25, 1.5, 2]
-                    const curIdx = scales.findIndex(s => Math.abs(item.monitor.scale - s) < 0.01)
-                    root.setMonitorScale(item.monitor, scales[(curIdx + 1) % scales.length])
-                } else if (item.type === "monitor_toggle") {
-                    root.setMonitorEnabled(item.monitor, !item.monitor.enabled)
-                } else if (item.type === "sensitivity") {
-                    root.setMouseSensitivity(root.mouseSensitivity + 0.1)
-                } else if (item.type === "natural_scroll") {
-                    root.setNaturalScroll(!root.naturalScroll)
-                } else if (item.type === "blur_toggle") {
-                    root.setBlur(!root.blurEnabled)
-                } else if (item.type === "scroll_factor") {
-                    root.setScrollFactor(root.scrollFactor + 0.05)
-                } else if (item.type === "font_size") {
-                    Theme.barFontSize = Math.min(20, Theme.barFontSize + 1)
-                } else if (item.type === "vim_binds") {
-                    Theme.vimBinds = !Theme.vimBinds
-                } else if (item.type === "nav") {
-                    navigateTo(item.page)
-                }
+                if (item.type === "nav") navigateTo(item.page)
+                else root.toggleSystemItem(item)
             }
         }
 
@@ -2081,9 +2111,9 @@ Item {
             else if (result.type === "clipboard") { root.copyClipboardItem(result.line); root.closeRequested(); return }
             else if (result.type === "emoji") { root.copyEmoji(result.e); root.closeRequested(); return }
             else if (result.type === "system_item") {
-                root._pendingSystemLabel = result.label
+                root._pendingSystemId = result.id
                 root.page = result.page
-                const initIdx = root.systemSettingItems.findIndex(s => s.label === result.label)
+                const initIdx = root.systemSettingItems.findIndex(s => s.id === result.id)
                 root.selectedIndex = initIdx >= 0 ? initIdx : 0
                 Qt.callLater(() => sysListView.positionViewAtIndex(root.selectedIndex, ListView.Contain))
             }
@@ -2654,6 +2684,7 @@ Item {
                                 onClicked: {
                                     root.selectedIndex = sysDelegate.index
                                     if (kind === "nav") keyNav.navigateTo(entry.page)
+                                    else if (root.systemToggleState(entry) !== undefined) root.toggleSystemItem(entry)
                                 }
 
                                 // Monitor scale chips
@@ -2661,16 +2692,17 @@ Item {
                                     visible: row.kind === "scale"
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: 4
+                                    opacity: row.entry.monitor && row.entry.monitor.enabled ? 1.0 : 0.4
 
                                     Repeater {
-                                        model: [1, 1.25, 1.5, 2]
+                                        model: root.monitorScales
                                         delegate: Rectangle {
                                             id: scaleChip
                                             required property var modelData
                                             readonly property bool active: row.entry.monitor
                                                 ? Math.abs(row.entry.monitor.scale - modelData) < 0.01 : false
                                             width: 42; height: 26; radius: Theme.radiusSm
-                                            color: active ? Theme.accent : Theme.hover
+                                            color: active ? Theme.accent : chipHover.hovered ? Theme.selected : Theme.hover
 
                                             Label {
                                                 anchors.centerIn: parent
@@ -2681,91 +2713,57 @@ Item {
                                             }
 
                                             TapHandler {
+                                                enabled: !!(row.entry.monitor && row.entry.monitor.enabled)
                                                 onTapped: {
                                                     root.selectedIndex = sysDelegate.index
                                                     root.setMonitorScale(row.entry.monitor, scaleChip.modelData)
                                                 }
                                             }
-                                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                            HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
                                         }
                                     }
                                 }
 
-                                // Stepper for pointer speed, scroll speed and text size
+                                // Value + slider for pointer speed, scroll speed and text size
                                 Row {
-                                    visible: row.kind === "sensitivity" || row.kind === "scroll_factor" || row.kind === "font_size"
+                                    id: rangeRow
+                                    readonly property var range: root.sysRanges[row.kind] || null
+                                    visible: range !== null
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 4
+                                    spacing: 12
 
-                                    function step(dir) {
-                                        root.selectedIndex = sysDelegate.index
-                                        if (row.kind === "sensitivity") root.setMouseSensitivity(root.mouseSensitivity + dir * 0.1)
-                                        else if (row.kind === "scroll_factor") root.setScrollFactor(root.scrollFactor + dir * 0.05)
-                                        else if (row.kind === "font_size") Theme.barFontSize = Math.max(8, Math.min(20, Theme.barFontSize + dir))
+                                    Label {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 44
+                                        horizontalAlignment: Text.AlignRight
+                                        text: rangeRow.range ? root.sysRangeValue(row.kind).toFixed(rangeRow.range.decimals) + rangeRow.range.suffix : ""
+                                        color: Theme.subtext
+                                        font.pixelSize: Theme.textSm
                                     }
 
-                                    Repeater {
-                                        model: [-1, 0, 1]
-                                        delegate: Item {
-                                            required property int modelData
-                                            width: modelData === 0 ? 48 : 26
-                                            height: 26
-
-                                            Rectangle {
-                                                anchors.fill: parent
-                                                visible: parent.modelData !== 0
-                                                radius: Theme.radiusSm
-                                                color: stepHover.hovered ? Theme.selected : Theme.hover
-                                            }
-
-                                            Label {
-                                                anchors.centerIn: parent
-                                                text: parent.modelData < 0 ? "−"
-                                                    : parent.modelData > 0 ? "+"
-                                                    : row.kind === "sensitivity" ? root.mouseSensitivity.toFixed(1)
-                                                    : row.kind === "scroll_factor" ? root.scrollFactor.toFixed(2)
-                                                    : Theme.barFontSize + " px"
-                                                color: parent.modelData === 0 ? Theme.text : Theme.subtext
-                                                font.pixelSize: parent.modelData === 0 ? Theme.textSm : Theme.textMd
-                                            }
-
-                                            HoverHandler { id: stepHover; enabled: parent.modelData !== 0; cursorShape: Qt.PointingHandCursor }
-                                            TapHandler {
-                                                enabled: parent.modelData !== 0
-                                                onTapped: parent.parent.step(parent.modelData)
-                                            }
+                                    Slider {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 120
+                                        value: rangeRow.range
+                                            ? (root.sysRangeValue(row.kind) - rangeRow.range.min) / (rangeRow.range.max - rangeRow.range.min) : 0
+                                        onMoved: v => {
+                                            root.selectedIndex = sysDelegate.index
+                                            root.setSysRange(row.kind, rangeRow.range.min + v * (rangeRow.range.max - rangeRow.range.min))
                                         }
                                     }
                                 }
 
                                 Toggle {
-                                    visible: row.kind === "natural_scroll"
+                                    readonly property var isOn: root.systemToggleState(row.entry)
+                                    // The last enabled monitor can't be switched off
+                                    readonly property bool locked: row.kind === "monitor_toggle" && isOn
+                                        && root.systemMonitors.filter(m => m.enabled).length <= 1
+                                    visible: isOn !== undefined
                                     anchors.verticalCenter: parent.verticalCenter
-                                    checked: root.naturalScroll
-                                    onToggled: { root.selectedIndex = sysDelegate.index; root.setNaturalScroll(!root.naturalScroll) }
-                                }
-
-                                Toggle {
-                                    visible: row.kind === "blur_toggle"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    checked: root.blurEnabled
-                                    onToggled: { root.selectedIndex = sysDelegate.index; root.setBlur(!root.blurEnabled) }
-                                }
-
-                                Toggle {
-                                    visible: row.kind === "vim_binds"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    checked: Theme.vimBinds
-                                    onToggled: { root.selectedIndex = sysDelegate.index; Theme.vimBinds = !Theme.vimBinds }
-                                }
-
-                                Toggle {
-                                    visible: row.kind === "monitor_toggle"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    readonly property bool canDisable: root.systemMonitors.filter(m => m.enabled).length > 1
-                                    checked: !!(row.entry.monitor && row.entry.monitor.enabled)
-                                    opacity: checked && !canDisable ? 0.4 : 1.0
-                                    onToggled: { root.selectedIndex = sysDelegate.index; root.setMonitorEnabled(row.entry.monitor, !row.entry.monitor.enabled) }
+                                    checked: !!isOn
+                                    interactive: !locked
+                                    opacity: locked ? 0.4 : 1.0
+                                    onToggled: { root.selectedIndex = sysDelegate.index; root.toggleSystemItem(row.entry) }
                                 }
                             }
                         }
@@ -2904,7 +2902,7 @@ Item {
                 PageHeader {
                     id: monLayoutHeader
                     title: "Arrangement"
-                    detail: "Arrows move · Tab switches · 0–9 assigns"
+                    detail: "Arrows place · Tab next monitor · 0–9 assign workspace"
                     onBackClicked: keyNav.goBack()
                 }
 
@@ -2985,7 +2983,7 @@ Item {
                                 property string ws: String(index + 1)
                                 property var rule: root.workspaceRules.find(r => r.workspace === ws) || null
                                 property var selMon: root.systemMonitors[root.selectedMonitorIdx]
-                                property bool onSelectedMon: rule && selMon && rule.monitor === selMon.name
+                                property bool onSelectedMon: !!(rule && selMon && rule.monitor === selMon.name)
 
                                 width: (wsChipRow.width - 9 * wsChipRow.spacing) / 10
                                 height: 40

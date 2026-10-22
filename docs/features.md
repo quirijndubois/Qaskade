@@ -17,8 +17,8 @@ title: Features
 
 - **Fuzzy search** across wallpapers, palettes, layouts, bar modules, apps, Bluetooth devices, clipboard history, monitors, and system settings
 - **Appearance page** - choose a color palette, place bar modules left/center/right, and manage wallpaper tags
-- **Monitor layout page** - enable/disable monitors, set resolution/scale/position, assign workspaces to specific monitors
-- **System settings page** - sections for displays (scale, enable/disable, arrangement), input (pointer speed, natural scrolling, scroll speed), windows (tiling layout, blur), and keyboard (Vim keys)
+- **Monitor arrangement page** - place monitors beside each other and assign workspaces to specific monitors
+- **System settings page** - sections for displays (scale, enable/disable, arrangement), mouse and touchpad (pointer speed, natural scrolling, scroll speed), windows (tiling layout, blur), and the shell (bar text size, Vim keys)
 - **Notification history** - view recent notifications, manually dismiss, or clear all
 - **Filesystem browser** - navigate directories and open files with `xdg-open`
 - **Math evaluator** - type expressions like `5 * (3 + 2)`, `2^16`, `(100 - 32) / 1.8` and get instant results
@@ -37,14 +37,14 @@ title: Features
 
 ## System Management
 
-- **Monitor layout** - configure position, resolution, scale, enable/disable monitors, assign workspaces
+- **Monitor layout** - configure position, scale, enable/disable monitors, assign workspaces
 - **Wallpaper manager** - browse and apply images with smooth transitions (fade, slide, wipe, wave, grow), per-monitor
 - **App launcher** - browse `.desktop` entries with icons
 - **Bluetooth manager** - pair, connect, disconnect devices from settings
 - **WiFi manager** - scan networks, connect with password entry, disconnect, and forget saved networks
 - **Clipboard history** - browse and re-copy entries via `cliphist`; searchable from fuzzy finder
 - **System settings** - live configuration via `hyprctl` and persistent `user-settings.lua`
-- **Blur toggle** - enable/disable Hyprland compositor blur; automatically adjusts Kitty opacity
+- **Blur toggle** - enable/disable Hyprland compositor blur
 
 ## Lock Screen
 

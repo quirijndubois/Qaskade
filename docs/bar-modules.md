@@ -57,9 +57,9 @@ where `dIdle = idle + iowait` and `dTotal` is sum of all fields. Previous snapsh
 
 ## Audio (`AudioModule.qml`)
 
-**User:** A speaker glyph that reflects the volume level. Scroll to change volume, click to mute, right-click to open `pavucontrol`. Hover for a master volume slider (up to 150%) and per-app volume sliders.
+**User:** A speaker glyph that reflects the volume level, followed by three small bars that bounce with live output level (red when clipping). Scroll to change volume, click to mute, right-click to open `pavucontrol`. Hover for a master volume slider (up to 150%) and per-app volume sliders, each with a live level meter.
 
-**Internals:** Uses Quickshell's PipeWire binding. `Pipewire.defaultAudioSink` is kept alive with `PwObjectTracker`. Per-app streams are collected by watching `Pipewire.nodes` for `PwNodeType.AudioOutStream`. Node changes are debounced with `Qt.callLater` to batch rapid updates into a single refresh.
+**Internals:** Uses Quickshell's PipeWire binding. `Pipewire.defaultAudioSink` is kept alive with `PwObjectTracker`. Per-app streams are collected by watching `Pipewire.nodes` for `PwNodeType.AudioOutStream`. Node changes are debounced with `Qt.callLater` to batch rapid updates into a single refresh. Live levels come from `PwNodePeakMonitor`: the loudest channel peak is mapped from -6..0 dBFS onto 0..1 (`peakToLevel`). The bar meter scales that by the sink volume, and each bar gets a different height fraction and decay time. The sink monitor pauses while muted, and the per-stream monitors only run while the popup is open.
 
 The master volume slider allows dragging to 150% (red fill above 100%). The popup height follows its content.
 

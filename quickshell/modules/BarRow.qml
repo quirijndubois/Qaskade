@@ -12,6 +12,8 @@ Row {
     property var monitor: null
     property bool menuActive: false
     signal menuClicked()
+    // The lock screen's clock morphs out of this one
+    readonly property alias clock: clockModule
 
     spacing: 14
 
@@ -26,6 +28,7 @@ Row {
         monitor: root.monitor
     }
     ClockModule {
+        id: clockModule
         visible: Theme.showClock === root.pos
         screen: root.screen
     }

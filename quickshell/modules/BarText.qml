@@ -16,6 +16,8 @@ Item {
     property string moduleId: ""
     property Component modulePopup: null
     property var screen: null
+    // Extra items shown after the value text (e.g. a live level meter).
+    property alias trailing: trailingSlot.data
 
     implicitWidth: row.implicitWidth
     implicitHeight: Theme.barHeight
@@ -49,6 +51,14 @@ Item {
             color: root.color
             font.pixelSize: Theme.barFontSize
             font.weight: Font.Medium
+        }
+
+        Item {
+            id: trailingSlot
+            visible: children.length > 0
+            anchors.verticalCenter: parent.verticalCenter
+            width: childrenRect.width
+            height: childrenRect.height
         }
     }
 

@@ -10,6 +10,7 @@ Rectangle {
     property real warnAt: 101
     property real critAt: 101
     property bool invertThresholds: false
+    property int duration: 300
 
     readonly property bool _crit: invertThresholds ? value < critAt : value > critAt
     readonly property bool _warn: invertThresholds ? value < warnAt : value > warnAt
@@ -23,7 +24,7 @@ Rectangle {
         height: parent.height
         radius: parent.radius
         color: root._crit ? Theme.red : root._warn ? Theme.yellow : root.fillColor
-        Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: root.duration; easing.type: Easing.OutCubic } }
         Behavior on color { ColorAnimation { duration: 200 } }
     }
 }

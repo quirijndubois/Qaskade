@@ -50,9 +50,19 @@ ShellRoot {
     IpcHandler {
         target: "lock"
 
+        // Grows the lock screen out of the center notch of each monitor
         function lock() {
             root.sessionLocked = true
-            lockScreen.lock()
+            const notches = {}
+            for (const p of barVariants.instances)
+                if (p.modelData && root.barVisible) notches[p.modelData.name] = { rect: p.notchRect, radius: p.notchRadius, clock: p.clockRect() }
+            lockScreen.lock(notches)
+        }
+
+        // No snapshot or animation; for locking right before suspend
+        function lockInstant() {
+            root.sessionLocked = true
+            lockScreen.lock(null)
         }
     }
 
@@ -151,6 +161,7 @@ ShellRoot {
     }
 
     Variants {
+        id: barVariants
         model: Quickshell.screens
 
         delegate: Component {
@@ -173,6 +184,21 @@ ShellRoot {
                 }
 
                 property var hyprMonitor: Hyprland.monitorFor(modelData)
+                // Where the center notch sits on screen; the lock screen grows out of it
+                readonly property rect notchRect: Qt.rect(centerIsland.x, barStrip.y + centerIsland.y, centerIsland.width, centerIsland.height)
+                readonly property real notchRadius: centerIsland.cornerRadius
+
+                // On-screen rect of this bar's clock, or null when none is showing
+                function clockRect() {
+                    for (const row of [leftRow, centerRow, rightRow]) {
+                        const c = row.clock
+                        if (!c.visible || c.width <= 0) continue
+                        if (row === centerRow && centerIsland.mode !== "modules") return null
+                        const p = c.mapToItem(null, 0, 0)
+                        return Qt.rect(p.x, p.y, c.width, c.height)
+                    }
+                    return null
+                }
 
                 // ── Center notch modes ────────────────────────────────
                 // Settings and the wallpaper picker only expand on the host

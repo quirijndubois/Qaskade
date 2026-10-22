@@ -28,6 +28,51 @@ BarText {
         : "volumeHigh"
     iconColor: isMuted ? Theme.subtext : Theme.text
 
+    // ── Live output level ─────────────────────────────────────────
+    // Max channel peak mapped from -6..0 dBFS onto 0..1.
+    function peakToLevel(peaks, gain) {
+        if (!peaks || peaks.length === 0) return 0
+        let m = 0
+        for (let i = 0; i < peaks.length; i++) if (peaks[i] > m) m = peaks[i]
+        const v = Math.min(1.0, m * gain)
+        if (v < 1e-5) return 0
+        return Math.max(0, Math.min(1, (20 * Math.log10(v) + 6) / 6))
+    }
+
+    PwNodePeakMonitor {
+        id: sinkPeakMon
+        node: root.sink
+        enabled: root.sink !== null && !root.isMuted
+    }
+
+    readonly property real peakLevel: isMuted ? 0 : peakToLevel(sinkPeakMon.peaks, 1.0)
+
+    // Three bars of increasing height and decay, like sound-wave arcs.
+    trailing: Item {
+        width: 10
+        height: Theme.barFontSize + 2
+
+        Repeater {
+            model: [
+                { frac: 0.38, dur: 80  },
+                { frac: 0.65, dur: 170 },
+                { frac: 1.00, dur: 300 }
+            ]
+            Rectangle {
+                required property var modelData
+                required property int index
+
+                x: index * 4
+                anchors.verticalCenter: parent.verticalCenter
+                width: 2
+                height: Math.max(2, parent.height * Math.min(1, root.peakLevel * root.volLevel) * modelData.frac)
+                radius: 1
+                color: root.isMuted ? Theme.subtext : root.peakLevel > 0.9 ? Theme.red : Theme.text
+                Behavior on height { NumberAnimation { duration: modelData.dur; easing.type: Easing.OutCubic } }
+            }
+        }
+    }
+
     Item {
         width: 0; height: 0
         Repeater {
@@ -122,6 +167,14 @@ BarText {
                 }
             }
 
+            Meter {
+                width: parent.width
+                height: 3
+                value: root.peakLevel * 100
+                critAt: 85
+                duration: 60
+            }
+
             // ── Per-app streams ────────────────────────────────────
             Rectangle {
                 visible: root.appStreams.length > 0
@@ -157,6 +210,12 @@ BarText {
                             width: parent.width
                             spacing: 4
 
+                            PwNodePeakMonitor {
+                                id: streamPeakMon
+                                node: modelData
+                                enabled: BarHover.activeModule === "audio"
+                            }
+
                             Item {
                                 width: parent.width
                                 height: 16
@@ -181,6 +240,15 @@ BarText {
                                 width: parent.width
                                 value: modelData.audio ? Math.min(1, modelData.audio.volume) : 0
                                 onMoved: v => { if (modelData.audio) modelData.audio.volume = v }
+                            }
+
+                            Meter {
+                                width: parent.width
+                                height: 3
+                                value: root.peakToLevel(streamPeakMon.peaks, modelData.audio ? modelData.audio.volume : 1.0) * 100
+                                fillColor: Theme.subtext
+                                critAt: 85
+                                duration: 60
                             }
                         }
                     }

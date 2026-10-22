@@ -20,7 +20,7 @@ hl.monitor({ output = "DP-2",    mode = "1920x1080", position = "0x0",    scale 
 hl.monitor({ output = "HDMI-A-1", mode = "2560x1080", position = "1920x0", scale = 1 })
 ```
 
-Workspaces 1-5 default to `DP-2`, workspaces 6-9 to `HDMI-A-1`. You can also change this live from **Settings → System → Monitor Layout**.
+Workspaces 1-5 default to `DP-2`, workspaces 6-9 to `HDMI-A-1`. You can also change this live from **Settings → System → Arrangement & workspaces**.
 
 ### Programs
 
@@ -71,8 +71,8 @@ The settings overlay needs no rule - it is part of the bar's layer surface, not 
 ### Input
 
 - **Mouse sensitivity** - `0.4` (adjustable live from Settings)
-- **Natural scroll** - enabled on touchpad (adjustable live from Settings)
-- **Scroll factor** - `0.4` (adjustable live from Settings)
+- **Natural scroll** - enabled on touchpad (mouse and touchpad adjustable separately from Settings)
+- **Scroll factor** - `0.4` on touchpad (mouse and touchpad adjustable separately from Settings)
 - **3-finger swipe** - horizontal swipe switches workspaces
 - **Mouse drag** - `Alt + LMB` to drag windows, `Alt + RMB` or `Alt + Ctrl + LMB` to resize
 
@@ -138,7 +138,7 @@ local _f = io.open(_us, "r")
 if _f then _f:close(); dofile(_us) end
 ```
 
-This file is excluded from `install.sh` syncing and git tracking, making it the right place for machine-specific overrides (different monitors, peripherals, sensitivity).
+This file is excluded from `install.sh` syncing and git tracking, making it the right place for machine-specific overrides (different monitors, peripherals, sensitivity). The System page of the settings overlay generates it, so changes made there persist across reloads and reinstalls; manual edits to it are overwritten the next time a system setting is changed.
 
 ### Environment Variables
 

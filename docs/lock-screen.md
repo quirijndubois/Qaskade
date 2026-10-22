@@ -13,7 +13,7 @@ Qaskade includes a Wayland session lock with a blurred-wallpaper backdrop, smoot
 
 ### Locking
 
-Press `Alt + Delete` to lock. The screen fades in from below.
+Press `Alt + Delete` to lock. The lock screen grows out of the center notch of the bar until it covers the screen, blurring the desktop behind it, and the bar clock grows into the big lock-screen clock. Unlocking plays it in reverse.
 
 Hypridle also locks automatically after 1000 seconds of inactivity (configurable in `hypr/hypridle.conf`).
 
@@ -26,8 +26,8 @@ Hypridle also locks automatically after 1000 seconds of inactivity (configurable
 
 ### Typing
 
-- Each character adds a dot that pops in
-- The password box pulses (scales up briefly) on every keystroke
+- Each character adds a dot that grows in, and the row of dots glides to stay centered; deleting shrinks dots out
+- The dots pulse while the password is being checked, and turn red with the field when it's wrong
 - Wrong password triggers a damped horizontal shake then resets the input
 - `Backspace` removes last character; `Ctrl+Backspace` clears all; `Escape` clears all and closes the power menu
 - `Enter` submits
@@ -66,11 +66,26 @@ The lock is triggered externally by Hyprland keybinds via Quickshell IPC:
 qs ipc call lock lock
 ```
 
-`shell.qml` registers an `IpcHandler` with `target: "lock"` that calls `lockScreen.lock()`.
+`shell.qml` registers an `IpcHandler` with `target: "lock"`. `lock()` collects the on-screen rectangle and corner radius of every monitor's center notch (`notchRect` / `notchRadius` on each bar panel, skipped while the bar is hidden) and passes them to `lockScreen.lock(notches)`.
+
+`lockInstant()` locks without the snapshot or reveal. Hypridle's `before_sleep_cmd` uses it, because taking the snapshot first would delay the lock and the desktop could briefly show on resume.
 
 ### Backdrop
 
-`lock()` re-reads the current wallpaper with `awww query` before locking. The image is blurred with `MultiEffect` (from `QtQuick.Effects`) and covered by a semi-transparent `Theme.base` layer so text stays legible. If no wallpaper is found, the surface is plain `Theme.base`.
+The backdrop is the blurred snapshot (see below). Without a snapshot, it falls back to the current wallpaper, which `lock()` re-reads with `awww query` before locking. The image is blurred with `MultiEffect` (from `QtQuick.Effects`) and covered by a semi-transparent `Theme.base` layer so text stays legible. If no wallpaper is found, the surface is plain `Theme.base`.
+
+### Reveal From the Notch
+
+A session lock surface can't be transparent: once locked, Hyprland stops drawing the desktop behind it. So before locking, `lock()` runs `grim -o <output>` for every screen (in parallel, each capped at 1 second) into `$XDG_RUNTIME_DIR/qaskade-lock/`, and only then sets `wlLock.locked = true`. The snapshots are deleted on unlock.
+
+Each lock surface shows its snapshot at the bottom. Above it is a "sheet" whose geometry is interpolated by `reveal` (0 → 1) from the notch rectangle to the full screen, with the notch's bottom corner radius shrinking to 0. Inside the sheet, a blurred copy of the same snapshot is drawn through a `MultiEffect` mask, so the blur spreads out from the notch. A `Theme.base` tint is drawn through the same mask, and its opacity rises to 0.45 with `reveal` to keep text legible. The blur and tint are static layers, so only the mask and the tint opacity change per frame.
+
+The big clock lives outside the fading content. `lock()` also passes the on-screen rect of the bar clock (`clockRect()` on each bar panel, `null` when the clock is hidden or the center notch shows something else). The big clock starts scaled by `barFontSize / 112` and centered on that rect, and its scale and position are interpolated by the same `reveal`, so it grows into place with the sheet and shrinks back into the bar on unlock.
+
+- **Lock** - `reveal` animates to 1 over 700ms; after 280ms the content enter animation starts.
+- **Unlock** - the content exits, then `reveal` animates back to 0 over 460ms so the sheet shrinks into the notch, and then the lock is released.
+
+A screen without a snapshot or notch entry (bar hidden, `grim` failed, `lockInstant`, a monitor plugged in while locked) skips the reveal and starts fully covered.
 
 ### Animations
 
@@ -86,13 +101,16 @@ The **shake** on wrong password is a `SequentialAnimation` of 6 `NumberAnimation
 durations: 50, 80, 70, 60, 50, 40ms
 ```
 
-The **pulse** on keystroke scales the password box to 1.03 in 60ms (`OutCubic`) then returns with an overshoot bounce (`OutBack`, overshoot: 1.8).
 
 `pwBoxScale` and `pwBoxShiftX` are properties on the `WlSessionLockSurface`.
 
 ### Dot Animation
 
-Each password dot is a `Rectangle` with a `NumberAnimation on scale` from 0.4 to 1 (160ms `OutBack`) and `NumberAnimation on opacity` from 0 to 1 (120ms).
+The dot row has a fixed `Repeater` of 16 slots instead of a model equal to the password length, since changing an integer model rebuilds every delegate and replays all their animations. Each slot is shown when `index < passwordInput.length`. A shown slot is 15px wide and a hidden one 0px, with a `Behavior` on width (180ms `OutCubic`), so the centered row slides smoothly instead of jumping a dot's width. The 7px dot inside scales and fades in or out (200ms / 150ms `OutCubic`). While `authRunning`, the row's opacity pulses between 1 and 0.35. The "Enter password" placeholder crossfades with the dots.
+
+### Background Dimming
+
+When the lock starts, `dim` animates from 0 to 1 over 10 seconds (`InOutSine`). A black layer, drawn through the same sheet mask, has opacity `0.8 × dim`, so the background ends at 20% brightness. The clock and sign-in sit above it and stay bright. On unlock, `dim` fades back to 0 while the content exits.
 
 ---
 
