@@ -16,3 +16,6 @@ if _f then
 	_f:close()
 	dofile(_us)
 end
+
+-- Last, so a closed lid overrides the internal panel's rule from user-settings
+dofile(cfg .. "/lid.lua")

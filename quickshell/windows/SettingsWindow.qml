@@ -1032,6 +1032,8 @@ Item {
                 try {
                     const parts = this.text.split('---SEP---')
                     const monitors = JSON.parse(parts[0])
+                    const fileLines = (parts[1] || "").split('\n')
+                    const fileLine = name => fileLines.find(l => (l.match(/hl\.monitor\(.*output\s*=\s*"([^"]+)"/) || [])[1] === name) || ""
                     root.systemMonitors = monitors.map(m => ({
                         name: m.name,
                         desc: m.model || m.name,
@@ -1039,7 +1041,11 @@ Item {
                         refreshRate: m.refreshRate || 60,
                         x: m.x, y: m.y,
                         scale: m.scale || 1.0,
-                        enabled: !m.disabled
+                        enabled: !m.disabled,
+                        // Off without being disabled here: hypr/conf/lid.lua turned it
+                        // off for a closed lid, so its saved rule is kept unchanged
+                        lidOff: !!m.disabled && !/disabled\s*=\s*true/.test(fileLine(m.name)),
+                        savedLine: fileLine(m.name)
                     }))
                     const names = new Set(monitors.map(m => m.name))
                     root._foreignMonitorLines = (parts[1] || "").split('\n').filter(l => {
@@ -1168,6 +1174,10 @@ Item {
         const b = v => v ? "true" : "false"
         const lines = ["-- Written by the Qaskade settings overlay (System page). Manual edits are overwritten."]
         for (const m of root.systemMonitors) {
+            if (m.lidOff) {
+                if (m.savedLine) lines.push(m.savedLine)
+                continue
+            }
             if (!m.enabled) {
                 lines.push('hl.monitor({ output = "' + m.name + '", disabled = true })')
                 continue
@@ -1222,7 +1232,7 @@ Item {
     function setMonitorEnabled(mon, enabled) {
         if (!enabled && root.systemMonitors.filter(m => m.enabled).length <= 1) return
         // A monitor coming back on is placed by Hyprland instead of at a stale position
-        root._updateMonitor(mon.name, enabled ? { enabled: true, autoPos: true } : { enabled: false })
+        root._updateMonitor(mon.name, enabled ? { enabled: true, autoPos: true, lidOff: false } : { enabled: false, lidOff: false })
     }
 
     // Puts `mon` directly beside the other enabled monitors (top/left aligned),

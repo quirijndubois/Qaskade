@@ -141,18 +141,15 @@ ShellRoot {
         interval: 1000
         repeat: false
         onTriggered: {
-            monitorReenableProc.command = ["sh", "-c",
-                "if [ -f \"$HOME/.config/hypr/user-settings.lua\" ]; then" +
-                "  sed -i 's/, disabled = true//g' \"$HOME/.config/hypr/user-settings.lua\";" +
-                "fi; hyprctl reload"
-            ]
+            monitorReenableProc.command = ["sh", "-c", "sh \"$HOME/.config/quickshell/scripts/monitor-guard.sh\""]
             monitorReenableProc.running = false
             monitorReenableProc.running = true
         }
     }
 
-    // Re-enable all monitors whenever the connected monitor set changes,
-    // so a disconnected monitor can never leave the system with no active output.
+    // When the screen set changes, re-enable everything if no output is left
+    // active, and re-apply the lid rule (see scripts/monitor-guard.sh).
+    // Disabling a monitor on purpose also lands here and must be left alone.
     Connections {
         target: Quickshell
         function onScreensChanged() {

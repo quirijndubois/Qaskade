@@ -22,6 +22,10 @@ hl.monitor({ output = "HDMI-A-1", mode = "2560x1080", position = "1920x0", scale
 
 Workspaces 1-5 default to `DP-2`, workspaces 6-9 to `HDMI-A-1`. You can also change this live from **Settings → System → Arrangement & workspaces**.
 
+### Laptop Lid
+
+Closing the lid while an external monitor is connected turns the laptop panel off, and opening it turns the panel back on. Without an external monitor the lid is left to logind (usually suspend).
+
 ### Programs
 
 Three variables at the top control which apps keybinds launch:
@@ -139,6 +143,16 @@ if _f then _f:close(); dofile(_us) end
 ```
 
 This file is excluded from `install.sh` syncing and git tracking, making it the right place for machine-specific overrides (different monitors, peripherals, sensitivity). The System page of the settings overlay generates it, so changes made there persist across reloads and reinstalls; manual edits to it are overwritten the next time a system setting is changed.
+
+### Lid Switch and Monitor Safety Net
+
+**Files:** `hypr/conf/lid.lua`, `quickshell/scripts/monitor-guard.sh`
+
+`lid.lua` is loaded after `user-settings.lua`. When `/proc/acpi/button/lid/*/state` reads `closed` and a non-internal connector under `/sys/class/drm/card*-*/status` is `connected`, it adds `hl.monitor({ output = <panel>, disabled = true })` for every connected internal panel (`eDP*`, `LVDS*`, `DSI*`), overriding the panel's rule from `user-settings.lua`. It also binds `switch:on:Lid Switch` and `switch:off:Lid Switch` (locked, so they work on the lock screen) to `hyprctl reload`, which re-runs the check. Because the lid state lives only in this file, opening the lid restores whatever `user-settings.lua` says about the panel.
+
+The settings overlay doesn't save a panel that is off only because of the lid as disabled. A monitor Hyprland reports as disabled whose `user-settings.lua` line has no `disabled = true` keeps that line unchanged when the file is regenerated.
+
+`shell.qml` runs `monitor-guard.sh` one second after the screen set changes. When no output is active any more (an external monitor was unplugged while the laptop panel was disabled), it removes `disabled = true` from `user-settings.lua` and reloads. When the lid is closed and the internal panel is active next to another monitor (one was plugged in with the lid shut), it reloads so `lid.lua` turns the panel off. Turning a monitor off on purpose also changes the screen set, but neither condition matches it, so the guard leaves it alone.
 
 ### Environment Variables
 
